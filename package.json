@@ -1,6 +1,6 @@
 {
   "name": "gatewaycheck",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Cost-controlled checks for AI gateways, relay stations, and model proxies.",
   "bin": {
