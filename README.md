@@ -12,30 +12,43 @@ GatewayCheck is built for agent-led development flows: the CLI collects clean fa
 
 ## Quick Start
 
-Run GatewayCheck:
+Paste this into Codex, Claude Code, Cursor, or another coding agent:
+
+```text
+Install GatewayCheck in this workspace and use it as an AI gateway sensor.
+
+Run:
+npx gatewaycheck install
+
+After installation, use GatewayCheck whenever I ask about AI gateway connectivity, model routing, protocol compatibility, streaming, cache, usage, or billing diagnosis. When an audit is needed, ask me for the gateway URL and the API key environment variable name. Do not ask me to paste the raw API key into chat.
+```
+
+That is the main path. The agent installs GatewayCheck, mounts the local rules, loads the skill when available, then asks for the gateway details only when it is ready to run an audit.
+
+No API key is needed to install or mount GatewayCheck.
+
+If you are not inside an agent yet, run GatewayCheck yourself:
 
 ```bash
 npx gatewaycheck
 ```
 
-The first screen asks which setup path you want:
+The first screen shows the same agent-first setup path:
 
 ```text
-1. Agent mode: install Skill + CLI (recommended)
-2. Agent prompt only: generate an instruction for Codex, Claude Code, Cursor, or another agent
+1. Agent mode: install rules + Skill + CLI (recommended)
+2. Show the copy-paste instruction for your coding agent
 3. CLI mode: run a guided audit in this terminal
 4. Command reference
 ```
 
-Recommended agent-led flow:
+The installation command is:
 
 ```bash
-npx gatewaycheck init
 npx gatewaycheck install
-npx gatewaycheck prompt https://api.example.com
 ```
 
-Paste the generated prompt into Codex, Claude Code, Cursor, or another coding agent. The agent can use the GatewayCheck skill to plan the audit, call GatewayCheck in `--agent` mode, keep the request budget low, and explain the JSON facts.
+It updates project agent rules such as `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `.cursor/rules/gatewaycheck.mdc`, or `.github/copilot-instructions.md`, and installs the bundled Codex skill.
 
 Agent sensor mode:
 
@@ -145,6 +158,14 @@ npx gatewaycheck init
 
 `init` updates existing rule files such as `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `.cursor/rules/gatewaycheck.mdc`, or `.github/copilot-instructions.md`. If none exist, it creates `AGENTS.md`.
 
+### Show the Agent Install Instruction
+
+```bash
+npx gatewaycheck bootstrap
+```
+
+This prints the copy-paste instruction shown in the Quick Start. It does not require a key or gateway URL.
+
 ### Preview Before Spending Credits
 
 ```bash
@@ -219,10 +240,11 @@ npx gatewaycheck audit https://api.example.com \
 | `gatewaycheck` | open the setup menu |
 | `gatewaycheck init` | mount GatewayCheck instructions into agent rule files |
 | `gatewaycheck init --config` | create `gatewaycheck.local.json` |
-| `gatewaycheck install` | install Skill + CLI and show agent next steps |
+| `gatewaycheck install` | mount agent rules, install Skill + CLI, and show agent next steps |
+| `gatewaycheck bootstrap` | print the copy-paste install instruction for agents |
 | `gatewaycheck <url>` | start a CLI-only guided audit for a gateway URL |
 | `gatewaycheck check <url>` | same as CLI-only guided audit |
-| `gatewaycheck prompt <url>` | print an agent-ready audit prompt |
+| `gatewaycheck prompt <url>` | print an optional agent-ready audit prompt for a known gateway |
 | `gatewaycheck audit <url>` | run the full audit flow |
 | `gatewaycheck discover <url>` | inspect public metadata and visible models |
 | `gatewaycheck matrix <config>` | run configured model/protocol probes |
@@ -293,7 +315,7 @@ If a key has been pasted into chat, an issue, or a terminal transcript, rotate i
 
 The Codex skill lives at [skills/gatewaycheck/SKILL.md](skills/gatewaycheck/SKILL.md). Use it when you want an agent to choose the budget, decide whether to test representative or specified models, run the CLI, and interpret the report.
 
-Install the skill from the npm package and print the agent next steps:
+Mount project rules and install the skill from the npm package:
 
 ```bash
 npx gatewaycheck install
@@ -310,10 +332,12 @@ Then restart Codex or reload your TUI session so it can discover the skill.
 Generate an agent-ready instruction:
 
 ```bash
-npx gatewaycheck prompt https://api.example.com
+npx gatewaycheck bootstrap
 ```
 
-The CLI remains the source of truth for probes and report generation.
+`gatewaycheck prompt <url>` is optional when you already know the gateway URL and want a ready audit request. The main install flow does not require a key or URL.
+
+The CLI remains the source of truth for probes and fact generation.
 
 ## Development
 

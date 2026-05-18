@@ -11,6 +11,7 @@ test('prints GatewayCheck help', () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /GatewayCheck/);
   assert.match(result.stdout, /gatewaycheck https:\/\/api\.example\.com/);
+  assert.match(result.stdout, /gatewaycheck bootstrap/);
   assert.match(result.stdout, /gatewaycheck prompt https:\/\/api\.example\.com/);
   assert.match(result.stdout, /gatewaycheck install/);
   assert.match(result.stdout, /gatewaycheck init --config/);
@@ -66,6 +67,14 @@ test('prints agent-ready prompt', () => {
   assert.match(result.stdout, /Do not ask me to paste the API key into chat/);
 });
 
+test('prints agent bootstrap instruction without gateway details', () => {
+  const result = runCli(['bootstrap']);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /npx gatewaycheck install/);
+  assert.match(result.stdout, /ask me for the gateway URL/);
+  assert.doesNotMatch(result.stdout, /Gateway URL:/);
+});
+
 test('prints machine-readable JSON for agent errors', () => {
   const result = runCli([
     'audit',
@@ -88,7 +97,8 @@ test('prints machine-readable JSON for agent errors', () => {
 test('prints menu for no-argument non-tty use', () => {
   const result = runCli([]);
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /Agent mode: install Skill \+ CLI/);
+  assert.match(result.stdout, /Agent mode: install rules \+ Skill \+ CLI/);
+  assert.match(result.stdout, /No API key is needed for installation/);
   assert.match(result.stdout, /CLI mode: run a guided audit/);
 });
 
@@ -109,13 +119,35 @@ test('mounts GatewayCheck into agent rules', () => {
   }
 });
 
-function runCli(args) {
+test('install mounts rules and skill without asking for gateway details', () => {
+  const root = resolve('.tmp-cli-install-test');
+  const codexHome = resolve(root, 'codex-home');
+  rmSync(root, { recursive: true, force: true });
+  mkdirSync(root, { recursive: true });
+  try {
+    const result = runCli(['install', '--cwd', root, '--force'], { CODEX_HOME: codexHome });
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /agent rules installed/);
+    assert.match(result.stdout, /Installed GatewayCheck skill/);
+    assert.match(result.stdout, /Installation does not require an API key/);
+    assert.doesNotMatch(result.stdout, /Gateway URL:/);
+    const agents = readFileSync(resolve(root, 'AGENTS.md'), 'utf8');
+    assert.match(agents, /GatewayCheck Agent Sensor/);
+    const skill = readFileSync(resolve(codexHome, 'skills/gatewaycheck/SKILL.md'), 'utf8');
+    assert.match(skill, /GatewayCheck/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+function runCli(args, env = {}) {
   return spawnSync(process.execPath, [cli, ...args], {
     cwd: resolve('.'),
     encoding: 'utf8',
     env: {
       ...process.env,
       GATEWAYCHECK_TEST_MISSING_KEY: '',
+      ...env,
     },
   });
 }

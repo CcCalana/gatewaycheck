@@ -20,15 +20,16 @@ description: Benchmark and audit AI API gateways, relay stations, New API deploy
 
 When the user asks to audit a gateway from an agent or TUI:
 
-1. Confirm the gateway URL, API key environment variable name, budget preset, and report language.
-2. Run `npx gatewaycheck audit <url> --key-env <env> --preset smart --plan-only --lang auto --agent` first unless the user already chose a specific preset or language.
-3. Parse stdout as JSON facts. Do not ask GatewayCheck to produce the final human report.
-4. Explain the selected models, protocols, and request budget before adding `--yes`.
-5. Run live probes with `npx gatewaycheck audit <url> --key-env <env> --preset smart --yes --lang auto --agent`.
-6. Use `facts.auth_status`, `facts.network_status`, `facts.matrix`, `facts.latency`, `facts.token_usage`, `facts.cache`, `facts.routing`, and `facts.probes` as the evidence base.
-7. If the process exits `1`, inspect the JSON error/facts first; this usually means auth or network blocked useful diagnosis.
-8. If the key environment variable is missing in a non-interactive shell, ask the user to set it locally or run the CLI guided flow; do not ask them to paste a raw key into chat.
-9. Prefer `quick` or `smart`; use `broad` only after the user explicitly asks for wider coverage.
+1. If GatewayCheck is not installed or mounted in the workspace, run `npx gatewaycheck install`.
+2. Confirm the gateway URL, API key environment variable name, budget preset, and report language only when an audit is about to run.
+3. Run `npx gatewaycheck audit <url> --key-env <env> --preset smart --plan-only --lang auto --agent` first unless the user already chose a specific preset or language.
+4. Parse stdout as JSON facts. Do not ask GatewayCheck to produce the final human report.
+5. Explain the selected models, protocols, and request budget before adding `--yes`.
+6. Run live probes with `npx gatewaycheck audit <url> --key-env <env> --preset smart --yes --lang auto --agent`.
+7. Use `facts.auth_status`, `facts.network_status`, `facts.matrix`, `facts.latency`, `facts.token_usage`, `facts.cache`, `facts.routing`, and `facts.probes` as the evidence base.
+8. If the process exits `1`, inspect the JSON error/facts first; this usually means auth or network blocked useful diagnosis.
+9. If the key environment variable is missing in a non-interactive shell, ask the user to set it locally or run the CLI guided flow; do not ask them to paste a raw key into chat.
+10. Prefer `quick` or `smart`; use `broad` only after the user explicitly asks for wider coverage.
 
 ## Workflow
 

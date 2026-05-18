@@ -33,6 +33,7 @@ const commands = {
   prompt: agentPrompt,
   'agent-prompt': agentPrompt,
   guide: agentPrompt,
+  bootstrap: bootstrapPrompt,
   setup: wizard,
   install: installSkillAndGuide,
   init,
@@ -92,7 +93,7 @@ async function mainMenu(args) {
     return;
   }
   if (choice === '2') {
-    await agentPrompt(args);
+    bootstrapPrompt();
     return;
   }
   if (choice === '4') {
@@ -108,14 +109,16 @@ GatewayCheck setup
 
 Choose how you want to use GatewayCheck:
 
-1. Agent mode: install Skill + CLI (recommended)
-2. Agent prompt only: generate an instruction for Codex, Claude Code, Cursor, or another agent
+1. Agent mode: install rules + Skill + CLI (recommended)
+2. Show the copy-paste instruction for your coding agent
 3. CLI mode: run a guided audit in this terminal
 4. Command reference
 
-Agent-first path:
+Run this inside Codex, Claude Code, Cursor, or another coding agent:
   npx gatewaycheck install
-  npx gatewaycheck prompt https://api.example.com
+
+No API key is needed for installation. The agent asks for the gateway URL
+and key environment variable later, when it is ready to audit.
 
 CLI-only path:
   npx gatewaycheck https://api.example.com
@@ -123,13 +126,35 @@ CLI-only path:
 }
 
 async function installSkillAndGuide(args = []) {
+  if (!args.includes('--skill-only')) {
+    await initAgentRules(args);
+  }
   await skill(args.includes('--force') ? ['--install', '--force'] : ['--install']);
   printAgentNextSteps();
-  if (!input.isTTY) return;
+}
 
-  const answer = (await askText('Generate an agent prompt now? [Y/n]: ')).trim();
-  if (/^n(o)?$/i.test(answer)) return;
-  await agentPrompt(args);
+function bootstrapPrompt() {
+  console.log([
+    'Paste this into Codex, Claude Code, Cursor, or another coding agent:',
+    '',
+    '---',
+    '',
+    'Install GatewayCheck in this workspace and use it as an AI gateway sensor.',
+    '',
+    'Run:',
+    'npx gatewaycheck install',
+    '',
+    'After installation, use the GatewayCheck rules/skill for any AI gateway connectivity, model routing, protocol compatibility, streaming, cache, usage, or billing diagnosis.',
+    '',
+    'When an audit is needed, ask me for the gateway URL and the API key environment variable name. Do not ask me to paste the raw API key into chat.',
+    '',
+    'Start with:',
+    'npx gatewaycheck audit <gateway-url> --key-env <env-name> --preset smart --plan-only --agent',
+    '',
+    'Explain the planned request budget before running live probes with --yes.',
+    '',
+    '---',
+  ].join('\n'));
 }
 
 async function guidedAudit(args) {
@@ -344,6 +369,7 @@ Usage:
   gatewaycheck
   gatewaycheck https://api.example.com
   gatewaycheck check https://api.example.com
+  gatewaycheck bootstrap
   gatewaycheck prompt https://api.example.com
   gatewaycheck install
   gatewaycheck init
@@ -389,6 +415,7 @@ Options:
   --md <path>        Save Markdown audit report
   --json             Print JSON to stdout
   --config           With init, create gatewaycheck.local.json instead of agent rules
+  --skill-only       With install, skip project agent-rule mounting
   --max-models <n>   Audit planner model limit
   --max-requests <n> Audit request budget for matrix phase
   --max-tokens <n>   Audit max output tokens
@@ -434,13 +461,12 @@ function printAgentNextSteps() {
   console.log(`
 Next steps for agent-led audits:
 
-1. Restart Codex or reload your TUI session.
+1. Restart or reload your agent session if it does not pick up new rules automatically.
 2. Tell the agent:
-   Use the GatewayCheck skill to audit my AI gateway.
-3. Give the agent the gateway URL and the API key environment variable name.
+   Use GatewayCheck to audit my AI gateway.
+3. The agent should ask for the gateway URL and API key environment variable name when it starts the audit.
 
-You can generate a ready-to-paste prompt with:
-  gatewaycheck prompt https://api.example.com
+Installation does not require an API key.
 `);
 }
 

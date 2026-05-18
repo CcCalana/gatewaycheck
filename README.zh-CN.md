@@ -12,30 +12,43 @@ GatewayCheck 面向 agent-led 开发流：CLI 负责采集干净事实，coding 
 
 ## 快速开始
 
-运行 GatewayCheck：
+把下面这段话粘贴给 Codex、Claude Code、Cursor 或其他 coding agent：
+
+```text
+请在当前工作区安装 GatewayCheck，并把它作为 AI 网关诊断传感器使用。
+
+请运行：
+npx gatewaycheck install
+
+安装完成后，凡是我询问 AI 网关连通性、模型路由、协议兼容性、流式输出、缓存、usage 或计费透明度问题时，请优先使用 GatewayCheck。真正开始测评时，再向我确认网关 URL 和保存 API key 的环境变量名。不要让我把明文 API key 粘贴到聊天里。
+```
+
+这是主路径。agent 会安装 GatewayCheck、挂载本地规则，并在可用时加载 skill；只有真正开始测评时，才会询问网关地址和 key 环境变量名。
+
+安装和挂载 GatewayCheck 不需要 API key。
+
+如果你还没有进入 agent 环境，也可以自己运行：
 
 ```bash
 npx gatewaycheck
 ```
 
-第一屏会让用户选择安装/使用模式：
+第一屏会显示同样的 agent-first 安装路径：
 
 ```text
-1. Agent mode: install Skill + CLI (recommended)
-2. Agent prompt only: generate an instruction for Codex, Claude Code, Cursor, or another agent
+1. Agent mode: install rules + Skill + CLI (recommended)
+2. Show the copy-paste instruction for your coding agent
 3. CLI mode: run a guided audit in this terminal
 4. Command reference
 ```
 
-推荐的 agent 自动测评流程：
+安装命令是：
 
 ```bash
-npx gatewaycheck init
 npx gatewaycheck install
-npx gatewaycheck prompt https://api.example.com
 ```
 
-把生成的提示词粘贴给 Codex、Claude Code、Cursor 或其他 coding agent。agent 可以使用 GatewayCheck skill 规划测评、用 `--agent` 模式调用 GatewayCheck、控制请求预算并解释 JSON 事实。
+它会更新项目中的 `AGENTS.md`、`CLAUDE.md`、`.cursorrules`、`.cursor/rules/gatewaycheck.mdc` 或 `.github/copilot-instructions.md` 等 agent 规则文件，并安装随包附带的 Codex skill。
 
 Agent 传感器模式：
 
@@ -145,6 +158,14 @@ npx gatewaycheck init
 
 `init` 会更新已有的 `AGENTS.md`、`CLAUDE.md`、`.cursorrules`、`.cursor/rules/gatewaycheck.mdc` 或 `.github/copilot-instructions.md`。如果这些文件都不存在，它会创建 `AGENTS.md`。
 
+### 显示可复制给 Agent 的安装指令
+
+```bash
+npx gatewaycheck bootstrap
+```
+
+这会输出快速开始中的那段安装指令，不需要 key，也不需要网关 URL。
+
 ### 先预览，不消耗矩阵额度
 
 ```bash
@@ -219,10 +240,11 @@ npx gatewaycheck audit https://api.example.com \
 | `gatewaycheck` | 打开安装/使用模式菜单 |
 | `gatewaycheck init` | 把 GatewayCheck 使用说明挂载到 agent 规则文件 |
 | `gatewaycheck init --config` | 创建 `gatewaycheck.local.json` |
-| `gatewaycheck install` | 安装 Skill + CLI，并显示 agent 使用指引 |
+| `gatewaycheck install` | 挂载 agent 规则、安装 Skill + CLI，并显示 agent 使用指引 |
+| `gatewaycheck bootstrap` | 输出可复制给 agent 的安装指令 |
 | `gatewaycheck <url>` | 对指定网关启动 CLI-only 引导式审计 |
 | `gatewaycheck check <url>` | 同 CLI-only 引导式审计 |
-| `gatewaycheck prompt <url>` | 输出可直接交给 agent 的测评提示词 |
+| `gatewaycheck prompt <url>` | 为已知网关输出可选的 agent 测评提示词 |
 | `gatewaycheck audit <url>` | 运行完整审计 |
 | `gatewaycheck discover <url>` | 查看公开元数据和可见模型 |
 | `gatewaycheck matrix <config>` | 运行配置中的模型/协议探针 |
@@ -293,7 +315,7 @@ GatewayCheck 是本地优先工具。
 
 Codex skill 位于 [skills/gatewaycheck/SKILL.md](skills/gatewaycheck/SKILL.md)。当你希望智能体选择预算、判断测代表模型还是指定模型、运行 CLI 并解释报告时，可以使用它。
 
-从 npm 包安装 skill，并显示 agent 下一步指引：
+从 npm 包挂载项目规则并安装 skill：
 
 ```bash
 npx gatewaycheck install
@@ -307,13 +329,15 @@ npx gatewaycheck skill --install --force
 
 安装后重启 Codex 或重新加载 TUI 会话，让它发现新 skill。
 
-生成可直接交给 agent 的指令：
+生成可直接交给 agent 的安装指令：
 
 ```bash
-npx gatewaycheck prompt https://api.example.com
+npx gatewaycheck bootstrap
 ```
 
-CLI 是探针执行和报告生成的权威入口。
+当你已经知道网关 URL，并且想生成一段现成的测评请求时，可以使用 `gatewaycheck prompt <url>`。主安装流程不需要 key，也不需要 URL。
+
+CLI 是探针执行和事实生成的权威入口。
 
 ## 开发
 
