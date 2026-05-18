@@ -18,10 +18,10 @@ import {
   validateConfig,
 } from '../../core/src/index.mjs';
 
-const command = process.argv[2] ?? 'help';
-const args = process.argv.slice(3);
-
 const commands = {
+  wizard,
+  check: wizard,
+  run: wizard,
   init,
   discover,
   agent,
@@ -33,6 +33,10 @@ const commands = {
   help,
 };
 
+const rawCommand = process.argv[2];
+const command = rawCommand ? commandFromArg(rawCommand) : 'wizard';
+const args = command === 'wizard' && rawCommand && !commands[rawCommand] ? process.argv.slice(2) : process.argv.slice(3);
+
 try {
   const handler = commands[command] ?? help;
   await handler(args);
@@ -40,6 +44,69 @@ try {
   console.error(`\nERROR: ${sanitizeForLog(error.message)}\n`);
   if (process.env.DEBUG) console.error(error.stack);
   process.exit(1);
+}
+
+async function wizard(args) {
+  if (args.includes('--help') || args.includes('-h')) {
+    help();
+    return;
+  }
+
+  rejectRawKeyFlags(args);
+  const rl = createInterface({ input, output });
+  try {
+    const baseUrl = stringOption(args, '--base-url') ?? urlArgument(args) ?? await ask(rl, 'Gateway URL: ');
+    if (!baseUrl) throw new Error('gateway URL is required');
+
+    const defaultKeyEnv = stringOption(args, '--key-env') ?? 'GATEWAY_API_KEY';
+    const keyEnvAnswer = stringOption(args, '--key-env')
+      ? defaultKeyEnv
+      : await ask(rl, `API key environment variable (${defaultKeyEnv}): `);
+    const keyEnv = keyEnvAnswer || defaultKeyEnv;
+
+    const presetAnswer = stringOption(args, '--preset') ?? await ask(rl, 'Budget [quick/smart/broad] (smart): ');
+    const preset = normalizePreset(presetAnswer || 'smart');
+    const langAnswer = stringOption(args, '--lang') ?? await ask(rl, 'Report language [auto/en/zh] (auto): ');
+    const language = normalizeLanguage(langAnswer || 'auto');
+
+    const config = buildInlineConfig([
+      '--base-url', baseUrl,
+      '--key-env', keyEnv,
+      '--preset', preset,
+      '--lang', language,
+    ], baseUrl);
+
+    let apiKey = '';
+    try {
+      apiKey = resolveApiKey(config);
+    } catch {
+      printMissingKeyHelp(keyEnv);
+      return;
+    }
+
+    const options = parseAuditOptions(['--preset', preset, '--lang', language]);
+    output.write('\nPlanning a low-cost audit first...\n\n');
+    const preview = await printAuditPlan(config, apiKey, options, ['--lang', language]);
+
+    const maxRequests = preview.report.budget.maxRequests ?? 8;
+    const plannedRequests = preview.report.budget.plannedMatrixRequests ?? 0;
+    const proceed = await ask(
+      rl,
+      `\nRun this audit now? It will use up to ${plannedRequests}/${maxRequests} matrix requests. [y/N]: `
+    );
+    if (!/^y(es)?$/i.test(proceed.trim())) {
+      output.write('\nCancelled before running credit-consuming matrix probes.\n');
+      return;
+    }
+
+    const { report, markdown } = await runAuditSuite(config, apiKey, {
+      ...options,
+      discovery: preview.discovery,
+    });
+    await printAuditAndMaybeSave(report, markdown, args);
+  } finally {
+    rl.close();
+  }
 }
 
 async function init() {
@@ -126,8 +193,11 @@ function help() {
 GatewayCheck
 
 Usage:
-  gatewaycheck audit --base-url https://api.example.com --key-env GATEWAY_API_KEY --yes
-  gatewaycheck audit --base-url https://api.example.com --key-env GATEWAY_API_KEY --interactive
+  gatewaycheck
+  gatewaycheck https://api.example.com
+  gatewaycheck check https://api.example.com
+  gatewaycheck audit https://api.example.com --yes
+  gatewaycheck audit https://api.example.com --plan-only
   gatewaycheck discover [config-or-flags]
   gatewaycheck agent [config-or-flags] --yes
   gatewaycheck cache [config-or-flags] --yes
@@ -143,6 +213,7 @@ Source checkout:
 Defaults:
   config path: gatewaycheck.local.json
   key source:  config.apiKeyEnv environment variable
+  key env:     GATEWAY_API_KEY for URL-only commands
 
 Options:
   --yes              Required for key-consuming suites
@@ -259,7 +330,7 @@ async function doctor() {
 }
 
 async function loadConfigFromArgs(args) {
-  const baseUrl = stringOption(args, '--base-url');
+  const baseUrl = stringOption(args, '--base-url') ?? urlArgument(args);
   if (baseUrl) {
     const config = buildInlineConfig(args, baseUrl);
     validateConfig(config);
@@ -288,7 +359,7 @@ function firstNonFlag(args) {
     '--lang',
     '--timeout-ms',
   ]);
-  return args.find((arg, idx) => !arg.startsWith('--') && !valueFlags.has(args[idx - 1]));
+  return args.find((arg, idx) => !arg.startsWith('--') && !valueFlags.has(args[idx - 1]) && !isUrlLike(arg));
 }
 
 function buildInlineConfig(args, baseUrl) {
@@ -367,11 +438,12 @@ async function printAuditPlan(config, apiKey, options, args) {
 
   if (args.includes('--json')) {
     await printAndMaybeSave(report, args);
-    return;
+    return { report, discovery, matrixConfig, plan };
   }
 
   console.log(renderAuditPlanSummary(report, resolveCliLanguage(config, args)));
   await printAndMaybeSave(report, args, { printDefault: false });
+  return { report, discovery, matrixConfig, plan };
 }
 
 function renderAuditPlanSummary(report, lang) {
@@ -527,6 +599,11 @@ function recommendCoverage(visible, pricing) {
   };
 }
 
+function commandFromArg(arg) {
+  if (isUrlLike(arg)) return 'wizard';
+  return arg;
+}
+
 async function ask(rl, question) {
   return (await rl.question(question)).trim();
 }
@@ -543,6 +620,12 @@ function normalizeLanguage(value) {
   return 'auto';
 }
 
+function normalizePreset(value) {
+  const text = String(value || 'smart').trim().toLowerCase();
+  if (['quick', 'smart', 'broad'].includes(text)) return text;
+  return 'smart';
+}
+
 function resolveCliLanguage(config, args) {
   const lang = normalizeLanguage(stringOption(args, '--lang') ?? config.language);
   if (lang === 'zh') return 'zh';
@@ -557,7 +640,7 @@ function presetForCoverage(coverage) {
 }
 
 function auditPreset(args) {
-  const preset = stringOption(args, '--preset') ?? 'smart';
+  const preset = normalizePreset(stringOption(args, '--preset') ?? 'smart');
   if (preset === 'quick') {
     return { maxModels: 1, maxRequests: 4, maxOutputTokens: 32 };
   }
@@ -575,6 +658,27 @@ function stringOption(args, flag) {
 
 function listOption(args, flag) {
   return splitList(stringOption(args, flag) ?? '');
+}
+
+function urlArgument(args) {
+  return args.find((arg, idx) => isUrlLike(arg) && !args[idx - 1]?.startsWith('--'));
+}
+
+function isUrlLike(value) {
+  return /^https:\/\/[^ ]+/i.test(String(value ?? ''));
+}
+
+function printMissingKeyHelp(keyEnv) {
+  console.error(`\nMissing API key environment variable: ${keyEnv}\n`);
+  console.error('Set it in your shell, then run the command again.');
+  console.error('');
+  console.error('Windows PowerShell:');
+  console.error(`  $env:${keyEnv}="sk-..."`);
+  console.error('');
+  console.error('macOS / Linux:');
+  console.error(`  export ${keyEnv}="sk-..."`);
+  console.error('');
+  console.error('GatewayCheck does not accept raw API keys as CLI flags.');
 }
 
 function splitList(value) {

@@ -9,6 +9,7 @@ test('prints GatewayCheck help', () => {
   const result = runCli(['help']);
   assert.equal(result.status, 0);
   assert.match(result.stdout, /GatewayCheck/);
+  assert.match(result.stdout, /gatewaycheck https:\/\/api\.example\.com/);
   assert.match(result.stdout, /gatewaycheck audit/);
   assert.match(result.stdout, /gatewaycheck doctor/);
   assert.match(result.stdout, /--lang <name>/);
