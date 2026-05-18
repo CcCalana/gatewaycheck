@@ -10,6 +10,8 @@ test('prints GatewayCheck help', () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /GatewayCheck/);
   assert.match(result.stdout, /gatewaycheck https:\/\/api\.example\.com/);
+  assert.match(result.stdout, /gatewaycheck prompt https:\/\/api\.example\.com/);
+  assert.match(result.stdout, /gatewaycheck install/);
   assert.match(result.stdout, /gatewaycheck audit/);
   assert.match(result.stdout, /gatewaycheck skill --install/);
   assert.match(result.stdout, /gatewaycheck doctor/);
@@ -48,6 +50,21 @@ test('runs local release doctor', () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /Doctor found/);
   assert.match(result.stdout, /no blocking issues|no release readiness issues/);
+});
+
+test('prints agent-ready prompt', () => {
+  const result = runCli(['prompt', 'https://api.example.com']);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /Copy this prompt into Codex/);
+  assert.match(result.stdout, /Gateway URL: https:\/\/api\.example\.com/);
+  assert.match(result.stdout, /Do not ask me to paste the API key into chat/);
+});
+
+test('prints menu for no-argument non-tty use', () => {
+  const result = runCli([]);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /Agent mode: install Skill \+ CLI/);
+  assert.match(result.stdout, /CLI mode: run a guided audit/);
 });
 
 function runCli(args) {

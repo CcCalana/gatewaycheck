@@ -26,6 +26,11 @@ const commands = {
   wizard,
   check: wizard,
   run: wizard,
+  prompt: agentPrompt,
+  'agent-prompt': agentPrompt,
+  guide: agentPrompt,
+  setup: wizard,
+  install: installSkillAndGuide,
   init,
   discover,
   agent,
@@ -58,6 +63,67 @@ async function wizard(args) {
   }
 
   rejectRawKeyFlags(args);
+  if (!hasGatewayInput(args)) {
+    await mainMenu(args);
+    return;
+  }
+  await guidedAudit(args);
+}
+
+async function mainMenu(args) {
+  if (!input.isTTY) {
+    printWelcome();
+    return;
+  }
+
+  printWelcome();
+  const choice = (await askText('Choose an option [1-4] (1): ')).trim() || '1';
+  if (choice === '1') {
+    await installSkillAndGuide(args);
+    return;
+  }
+  if (choice === '2') {
+    await agentPrompt(args);
+    return;
+  }
+  if (choice === '4') {
+    help();
+    return;
+  }
+  await guidedAudit(args);
+}
+
+function printWelcome() {
+  console.log(`
+GatewayCheck setup
+
+Choose how you want to use GatewayCheck:
+
+1. Agent mode: install Skill + CLI (recommended)
+2. Agent prompt only: generate an instruction for Codex, Claude Code, Cursor, or another agent
+3. CLI mode: run a guided audit in this terminal
+4. Command reference
+
+Agent-first path:
+  npx gatewaycheck install
+  npx gatewaycheck prompt https://api.example.com
+
+CLI-only path:
+  npx gatewaycheck https://api.example.com
+`);
+}
+
+async function installSkillAndGuide(args = []) {
+  await skill(args.includes('--force') ? ['--install', '--force'] : ['--install']);
+  printAgentNextSteps();
+  if (!input.isTTY) return;
+
+  const answer = (await askText('Generate an agent prompt now? [Y/n]: ')).trim();
+  if (/^n(o)?$/i.test(answer)) return;
+  await agentPrompt(args);
+}
+
+async function guidedAudit(args) {
   const baseUrl = stringOption(args, '--base-url') ?? urlArgument(args) ?? await askText('Gateway URL: ');
   if (!baseUrl) throw new Error('gateway URL is required');
 
@@ -98,6 +164,55 @@ async function wizard(args) {
     discovery: preview.discovery,
   });
   await printAuditAndMaybeSave(report, markdown, args);
+}
+
+async function agentPrompt(args) {
+  rejectRawKeyFlags(args);
+  const baseUrl = await promptValue(args, {
+    flag: '--base-url',
+    positional: true,
+    question: 'Gateway URL for the agent prompt (leave blank for placeholder): ',
+    fallback: '<gateway URL>',
+  });
+  const keyEnv = await promptValue(args, {
+    flag: '--key-env',
+    question: 'API key environment variable (GATEWAY_API_KEY): ',
+    fallback: 'GATEWAY_API_KEY',
+  });
+  const preset = normalizePreset(await promptValue(args, {
+    flag: '--preset',
+    question: 'Budget preset [quick/smart/broad] (smart): ',
+    fallback: 'smart',
+  }));
+  const lang = normalizeLanguage(await promptValue(args, {
+    flag: '--lang',
+    question: 'Report language [auto/en/zh] (auto): ',
+    fallback: 'auto',
+  }));
+  const prompt = [
+    'Copy this prompt into Codex, Claude Code, Cursor, or another coding agent:',
+    '',
+    '---',
+    '',
+    'Use GatewayCheck to audit this AI gateway.',
+    '',
+    `Gateway URL: ${baseUrl}`,
+    `API key environment variable: ${keyEnv}`,
+    `Preferred budget preset: ${preset}`,
+    `Report language: ${lang}`,
+    '',
+    'Do not ask me to paste the API key into chat. If the environment variable is missing, run GatewayCheck and let it ask for the key securely in the terminal.',
+    'If your shell is non-interactive and GatewayCheck cannot prompt for the key, ask me to set the environment variable locally before running live probes.',
+    '',
+    'Start with a plan-only or guided audit. Keep the request budget low. Explain the selected models and protocols before running credit-consuming probes. After the run, summarize compatibility, permission issues, model routing signals, usage transparency, latency, and recommended next steps.',
+    '',
+    'Useful commands:',
+    `npx gatewaycheck audit ${baseUrl} --key-env ${keyEnv} --preset ${preset} --plan-only --lang ${lang}`,
+    `npx gatewaycheck audit ${baseUrl} --key-env ${keyEnv} --preset ${preset} --yes --lang ${lang}`,
+    '',
+    '---',
+  ].join('\n');
+  console.log(prompt);
 }
 
 async function init() {
@@ -187,6 +302,8 @@ Usage:
   gatewaycheck
   gatewaycheck https://api.example.com
   gatewaycheck check https://api.example.com
+  gatewaycheck prompt https://api.example.com
+  gatewaycheck install
   gatewaycheck audit https://api.example.com --yes
   gatewaycheck audit https://api.example.com --plan-only
   gatewaycheck discover [config-or-flags]
@@ -237,7 +354,9 @@ async function skill(args) {
   if (args.includes('--install')) {
     if (await pathExists(target)) {
       if (!args.includes('--force')) {
-        throw new Error(`GatewayCheck skill already exists at ${target}; pass --force to replace it`);
+        console.log(`GatewayCheck skill is already installed at ${target}`);
+        console.log('Pass --force to replace it.');
+        return;
       }
       await rm(target, { recursive: true, force: true });
     }
@@ -261,6 +380,20 @@ Install and replace an existing copy:
   gatewaycheck skill --install --force
 
 After installation, restart Codex or reload your TUI session.
+`);
+}
+
+function printAgentNextSteps() {
+  console.log(`
+Next steps for agent-led audits:
+
+1. Restart Codex or reload your TUI session.
+2. Tell the agent:
+   Use the GatewayCheck skill to audit my AI gateway.
+3. Give the agent the gateway URL and the API key environment variable name.
+
+You can generate a ready-to-paste prompt with:
+  gatewaycheck prompt https://api.example.com
 `);
 }
 
@@ -640,6 +773,10 @@ function commandFromArg(arg) {
   return arg;
 }
 
+function hasGatewayInput(args) {
+  return Boolean(stringOption(args, '--base-url') || urlArgument(args));
+}
+
 async function ask(rl, question) {
   return (await rl.question(question)).trim();
 }
@@ -652,6 +789,16 @@ async function askText(question) {
   } finally {
     rl.close();
   }
+}
+
+async function promptValue(args, { flag, positional = false, question, fallback }) {
+  const explicit = stringOption(args, flag);
+  if (explicit) return explicit;
+  const positionalValue = positional ? urlArgument(args) : undefined;
+  if (positionalValue) return positionalValue;
+  if (!input.isTTY) return fallback;
+  const answer = (await askText(question)).trim();
+  return answer || fallback;
 }
 
 async function promptForApiKey(keyEnv) {

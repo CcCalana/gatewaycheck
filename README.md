@@ -12,7 +12,31 @@ GatewayCheck is built for gateway users who want a practical answer before spend
 
 ## Quick Start
 
-Run the guided audit:
+Run GatewayCheck:
+
+```bash
+npx gatewaycheck
+```
+
+The first screen asks which setup path you want:
+
+```text
+1. Agent mode: install Skill + CLI (recommended)
+2. Agent prompt only: generate an instruction for Codex, Claude Code, Cursor, or another agent
+3. CLI mode: run a guided audit in this terminal
+4. Command reference
+```
+
+Recommended agent-led flow:
+
+```bash
+npx gatewaycheck install
+npx gatewaycheck prompt https://api.example.com
+```
+
+Paste the generated prompt into Codex, Claude Code, Cursor, or another coding agent. The agent can use the GatewayCheck skill to plan the audit, run GatewayCheck, keep the request budget low, and explain the report.
+
+Direct guided CLI flow:
 
 ```bash
 npx gatewaycheck https://api.example.com
@@ -172,9 +196,11 @@ npx gatewaycheck audit https://api.example.com \
 
 | Command | Purpose |
 |---|---|
-| `gatewaycheck` | start the guided audit |
-| `gatewaycheck <url>` | start the guided audit for a gateway URL |
-| `gatewaycheck check <url>` | same as guided audit |
+| `gatewaycheck` | open the setup menu |
+| `gatewaycheck install` | install Skill + CLI and show agent next steps |
+| `gatewaycheck <url>` | start a CLI-only guided audit for a gateway URL |
+| `gatewaycheck check <url>` | same as CLI-only guided audit |
+| `gatewaycheck prompt <url>` | print an agent-ready audit prompt |
 | `gatewaycheck audit <url>` | run the full audit flow |
 | `gatewaycheck discover <url>` | inspect public metadata and visible models |
 | `gatewaycheck matrix <config>` | run configured model/protocol probes |
@@ -245,10 +271,10 @@ If a key has been pasted into chat, an issue, or a terminal transcript, rotate i
 
 The Codex skill lives at [skills/gatewaycheck/SKILL.md](skills/gatewaycheck/SKILL.md). Use it when you want an agent to choose the budget, decide whether to test representative or specified models, run the CLI, and interpret the report.
 
-Install the skill from the npm package:
+Install the skill from the npm package and print the agent next steps:
 
 ```bash
-npx gatewaycheck skill --install
+npx gatewaycheck install
 ```
 
 Replace an existing local copy:
@@ -258,6 +284,12 @@ npx gatewaycheck skill --install --force
 ```
 
 Then restart Codex or reload your TUI session so it can discover the skill.
+
+Generate an agent-ready instruction:
+
+```bash
+npx gatewaycheck prompt https://api.example.com
+```
 
 The CLI remains the source of truth for probes and report generation.
 

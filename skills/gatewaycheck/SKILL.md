@@ -15,6 +15,16 @@ description: Benchmark and audit AI API gateways, relay stations, New API deploy
 - State request count and expected token budget before running live tests.
 - Distinguish agent-client compatibility from hosted agent runtime support.
 
+## Agent-Led Entry
+
+When the user asks to audit a gateway from an agent or TUI:
+
+1. Confirm the gateway URL, API key environment variable name, budget preset, and report language.
+2. Run `npx gatewaycheck audit <url> --key-env <env> --preset smart --plan-only --lang auto` first unless the user already chose a specific preset or language.
+3. Explain the selected models, protocols, and request budget before adding `--yes`.
+4. If the key environment variable is missing in a non-interactive shell, ask the user to set it locally or run the CLI guided flow; do not ask them to paste a raw key into chat.
+5. Prefer `quick` or `smart`; use `broad` only after the user explicitly asks for wider coverage.
+
 ## Workflow
 
 1. Discover the gateway:
