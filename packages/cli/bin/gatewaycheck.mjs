@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 
-import { access, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { access, copyFile, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
+import { fileURLToPath } from 'node:url';
 import {
   buildAuditMatrixConfig,
   discoverGateway,
@@ -18,6 +20,8 @@ import {
   validateConfig,
 } from '../../core/src/index.mjs';
 
+const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+
 const commands = {
   wizard,
   check: wizard,
@@ -30,6 +34,7 @@ const commands = {
   matrix,
   audit,
   doctor,
+  skill,
   help,
 };
 
@@ -53,64 +58,50 @@ async function wizard(args) {
   }
 
   rejectRawKeyFlags(args);
-  const rl = createInterface({ input, output });
-  try {
-    const baseUrl = stringOption(args, '--base-url') ?? urlArgument(args) ?? await ask(rl, 'Gateway URL: ');
-    if (!baseUrl) throw new Error('gateway URL is required');
+  const baseUrl = stringOption(args, '--base-url') ?? urlArgument(args) ?? await askText('Gateway URL: ');
+  if (!baseUrl) throw new Error('gateway URL is required');
 
-    const defaultKeyEnv = stringOption(args, '--key-env') ?? 'GATEWAY_API_KEY';
-    const keyEnvAnswer = stringOption(args, '--key-env')
-      ? defaultKeyEnv
-      : await ask(rl, `API key environment variable (${defaultKeyEnv}): `);
-    const keyEnv = keyEnvAnswer || defaultKeyEnv;
+  const defaultKeyEnv = stringOption(args, '--key-env') ?? 'GATEWAY_API_KEY';
+  const keyEnvAnswer = stringOption(args, '--key-env')
+    ? defaultKeyEnv
+    : await askText(`API key environment variable (${defaultKeyEnv}): `);
+  const keyEnv = keyEnvAnswer || defaultKeyEnv;
 
-    const presetAnswer = stringOption(args, '--preset') ?? await ask(rl, 'Budget [quick/smart/broad] (smart): ');
-    const preset = normalizePreset(presetAnswer || 'smart');
-    const langAnswer = stringOption(args, '--lang') ?? await ask(rl, 'Report language [auto/en/zh] (auto): ');
-    const language = normalizeLanguage(langAnswer || 'auto');
+  const presetAnswer = stringOption(args, '--preset') ?? await askText('Budget [quick/smart/broad] (smart): ');
+  const preset = normalizePreset(presetAnswer || 'smart');
+  const langAnswer = stringOption(args, '--lang') ?? await askText('Report language [auto/en/zh] (auto): ');
+  const language = normalizeLanguage(langAnswer || 'auto');
 
-    const config = buildInlineConfig([
-      '--base-url', baseUrl,
-      '--key-env', keyEnv,
-      '--preset', preset,
-      '--lang', language,
-    ], baseUrl);
+  const config = buildInlineConfig([
+    '--base-url', baseUrl,
+    '--key-env', keyEnv,
+    '--preset', preset,
+    '--lang', language,
+  ], baseUrl);
 
-    let apiKey = '';
-    try {
-      apiKey = resolveApiKey(config);
-    } catch {
-      printMissingKeyHelp(keyEnv);
-      return;
-    }
+  const apiKey = await resolveApiKeyOrPrompt(config);
 
-    const options = parseAuditOptions(['--preset', preset, '--lang', language]);
-    output.write('\nPlanning a low-cost audit first...\n\n');
-    const preview = await printAuditPlan(config, apiKey, options, ['--lang', language]);
+  const options = parseAuditOptions(['--preset', preset, '--lang', language]);
+  output.write('\nPlanning a low-cost audit first...\n\n');
+  const preview = await printAuditPlan(config, apiKey, options, ['--lang', language]);
 
-    const maxRequests = preview.report.budget.maxRequests ?? 8;
-    const plannedRequests = preview.report.budget.plannedMatrixRequests ?? 0;
-    const proceed = await ask(
-      rl,
-      `\nRun this audit now? It will use up to ${plannedRequests}/${maxRequests} matrix requests. [y/N]: `
-    );
-    if (!/^y(es)?$/i.test(proceed.trim())) {
-      output.write('\nCancelled before running credit-consuming matrix probes.\n');
-      return;
-    }
-
-    const { report, markdown } = await runAuditSuite(config, apiKey, {
-      ...options,
-      discovery: preview.discovery,
-    });
-    await printAuditAndMaybeSave(report, markdown, args);
-  } finally {
-    rl.close();
+  const maxRequests = preview.report.budget.maxRequests ?? 8;
+  const plannedRequests = preview.report.budget.plannedMatrixRequests ?? 0;
+  const proceed = await askText(`\nRun this audit now? It will use up to ${plannedRequests}/${maxRequests} matrix requests. [y/N]: `);
+  if (!/^y(es)?$/i.test(proceed.trim())) {
+    output.write('\nCancelled before running credit-consuming matrix probes.\n');
+    return;
   }
+
+  const { report, markdown } = await runAuditSuite(config, apiKey, {
+    ...options,
+    discovery: preview.discovery,
+  });
+  await printAuditAndMaybeSave(report, markdown, args);
 }
 
 async function init() {
-  const source = resolve('configs/example.gateway.json');
+  const source = resolve(packageRoot, 'configs/example.gateway.json');
   const target = resolve('gatewaycheck.local.json');
   await copyFile(source, target);
   console.log(`Created ${target}`);
@@ -134,7 +125,7 @@ async function agent(args) {
   requireYes(args, 'agent compatibility suite');
   rejectRawKeyFlags(args);
   const config = await loadConfigFromArgs(args);
-  const apiKey = resolveApiKey(config);
+  const apiKey = await resolveApiKeyOrPrompt(config);
   const report = await runAgentCompatibilitySuite(config, apiKey);
   await printAndMaybeSave(report, args);
 }
@@ -143,7 +134,7 @@ async function cache(args) {
   requireYes(args, 'prompt cache suite');
   rejectRawKeyFlags(args);
   const config = await loadConfigFromArgs(args);
-  const apiKey = resolveApiKey(config);
+  const apiKey = await resolveApiKeyOrPrompt(config);
   const report = await runCacheSuite(config, apiKey);
   await printAndMaybeSave(report, args);
 }
@@ -152,7 +143,7 @@ async function stream(args) {
   requireYes(args, 'streaming performance suite');
   rejectRawKeyFlags(args);
   const config = await loadConfigFromArgs(args);
-  const apiKey = resolveApiKey(config);
+  const apiKey = await resolveApiKeyOrPrompt(config);
   const report = await runStreamSuite(config, apiKey);
   await printAndMaybeSave(report, args);
 }
@@ -161,7 +152,7 @@ async function matrix(args) {
   requireYes(args, 'model/protocol matrix suite');
   rejectRawKeyFlags(args);
   const config = await loadConfigFromArgs(args);
-  const apiKey = resolveApiKey(config);
+  const apiKey = await resolveApiKeyOrPrompt(config);
   const report = await runMatrixSuite(config, apiKey);
   await printAndMaybeSave(report, args);
 }
@@ -176,7 +167,7 @@ async function audit(args) {
     return;
   }
 
-  const apiKey = resolveApiKey(config);
+  const apiKey = await resolveApiKeyOrPrompt(config);
   if (args.includes('--interactive')) {
     const interactive = await planInteractiveAudit(config, apiKey, args, options);
     config = interactive.config;
@@ -204,6 +195,8 @@ Usage:
   gatewaycheck stream [config-or-flags] --yes
   gatewaycheck matrix [config-or-flags] --yes
   gatewaycheck audit [config-or-flags] --plan-only
+  gatewaycheck skill
+  gatewaycheck skill --install
   gatewaycheck doctor
   gatewaycheck init
 
@@ -235,6 +228,39 @@ Options:
   --max-models <n>   Audit planner model limit
   --max-requests <n> Audit request budget for matrix phase
   --max-tokens <n>   Audit max output tokens
+`);
+}
+
+async function skill(args) {
+  const source = resolve(packageRoot, 'skills/gatewaycheck');
+  const target = resolveCodexSkillTarget();
+  if (args.includes('--install')) {
+    if (await pathExists(target)) {
+      if (!args.includes('--force')) {
+        throw new Error(`GatewayCheck skill already exists at ${target}; pass --force to replace it`);
+      }
+      await rm(target, { recursive: true, force: true });
+    }
+    await mkdir(dirname(target), { recursive: true });
+    await cp(source, target, { recursive: true });
+    console.log(`Installed GatewayCheck skill to ${target}`);
+    console.log('Restart Codex or reload your TUI session so it can discover the skill.');
+    return;
+  }
+
+  console.log(`
+GatewayCheck Skill
+
+Source:
+  ${source}
+
+Install for Codex:
+  gatewaycheck skill --install
+
+Install and replace an existing copy:
+  gatewaycheck skill --install --force
+
+After installation, restart Codex or reload your TUI session.
 `);
 }
 
@@ -396,8 +422,18 @@ function requireYes(args, suite) {
 }
 
 function rejectRawKeyFlags(args) {
-  if (args.includes('--api-key') || args.includes('--key')) {
+  if (args.some((arg) => arg === '--api-key' || arg === '--key' || arg.startsWith('--api-key=') || arg.startsWith('--key='))) {
     throw new Error('do not pass raw API keys as CLI flags; set an environment variable and pass --key-env instead');
+  }
+}
+
+async function resolveApiKeyOrPrompt(config) {
+  try {
+    return resolveApiKey(config);
+  } catch (error) {
+    const message = String(error?.message ?? '');
+    if (!message.includes('missing API key environment variable')) throw error;
+    return promptForApiKey(config.apiKeyEnv ?? 'GATEWAY_API_KEY');
   }
 }
 
@@ -608,6 +644,85 @@ async function ask(rl, question) {
   return (await rl.question(question)).trim();
 }
 
+async function askText(question) {
+  if (!input.isTTY) throw new Error('interactive input is required; pass --base-url and set the API key environment variable for non-interactive use');
+  const rl = createInterface({ input, output });
+  try {
+    return await ask(rl, question);
+  } finally {
+    rl.close();
+  }
+}
+
+async function promptForApiKey(keyEnv) {
+  if (!input.isTTY || !output.isTTY || typeof input.setRawMode !== 'function') {
+    throw new Error(`${missingKeyMessage(keyEnv)}\n\nSet it before running GatewayCheck:\n  PowerShell: $env:${keyEnv}="sk-..."\n  macOS/Linux: export ${keyEnv}="sk-..."`);
+  }
+
+  output.write(`\n${keyEnv} is not set. Paste the API key for this run only.\n`);
+  output.write('GatewayCheck will not save it to a config file or print it in the report.\n');
+  const key = await readSecret('API key: ');
+  if (!key) throw new Error(missingKeyMessage(keyEnv));
+  return key;
+}
+
+function readSecret(question) {
+  return new Promise((resolveSecret, rejectSecret) => {
+    let secret = '';
+    let done = false;
+    const wasRaw = input.isRaw;
+
+    function cleanup() {
+      input.off('data', onData);
+      if (typeof input.setRawMode === 'function') input.setRawMode(Boolean(wasRaw));
+      input.pause();
+    }
+
+    function finish() {
+      if (done) return;
+      done = true;
+      cleanup();
+      output.write('\n');
+      resolveSecret(secret.trim());
+    }
+
+    function fail(error) {
+      if (done) return;
+      done = true;
+      cleanup();
+      rejectSecret(error);
+    }
+
+    function onData(buffer) {
+      const text = buffer.toString('utf8');
+      for (const char of text) {
+        if (char === '\u0003') {
+          fail(new Error('cancelled'));
+          return;
+        }
+        if (char === '\r' || char === '\n') {
+          finish();
+          return;
+        }
+        if (char === '\u0008' || char === '\u007f') {
+          secret = secret.slice(0, -1);
+          continue;
+        }
+        secret += char;
+      }
+    }
+
+    output.write(question);
+    input.setRawMode(true);
+    input.resume();
+    input.on('data', onData);
+  });
+}
+
+function missingKeyMessage(keyEnv) {
+  return `missing API key environment variable: ${keyEnv}`;
+}
+
 function normalizeCoverage(value, fallback) {
   const text = String(value || fallback).trim().toLowerCase();
   if (['quick', 'smart', 'broad', 'specified'].includes(text)) return text;
@@ -652,6 +767,8 @@ function auditPreset(args) {
 
 function stringOption(args, flag) {
   const idx = args.indexOf(flag);
+  const inline = args.find((arg) => arg.startsWith(`${flag}=`));
+  if (inline) return inline.slice(flag.length + 1);
   if (idx < 0 || !args[idx + 1]) return undefined;
   return args[idx + 1];
 }
@@ -690,8 +807,9 @@ function splitList(value) {
 
 function numberOption(args, flag) {
   const idx = args.indexOf(flag);
-  if (idx < 0 || !args[idx + 1]) return undefined;
-  const n = Number(args[idx + 1]);
+  const value = stringOption(args, flag);
+  if (idx < 0 && value === undefined) return undefined;
+  const n = Number(value);
   return Number.isFinite(n) ? n : undefined;
 }
 
@@ -701,6 +819,11 @@ function hostName(baseUrl) {
   } catch {
     return 'Gateway';
   }
+}
+
+function resolveCodexSkillTarget() {
+  const codexHome = process.env.CODEX_HOME || join(homedir(), '.codex');
+  return resolve(codexHome, 'skills/gatewaycheck');
 }
 
 async function pathExists(path) {

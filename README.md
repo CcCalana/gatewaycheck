@@ -12,7 +12,15 @@ GatewayCheck is built for gateway users who want a practical answer before spend
 
 ## Quick Start
 
-Set your gateway key as an environment variable.
+Run the guided audit:
+
+```bash
+npx gatewaycheck https://api.example.com
+```
+
+If `GATEWAY_API_KEY` is not set, GatewayCheck asks you to paste the key for this run only. The key is not saved to a config file and is not printed in reports.
+
+For repeated use, set your gateway key as an environment variable.
 
 Windows PowerShell:
 
@@ -24,12 +32,6 @@ macOS / Linux:
 
 ```bash
 export GATEWAY_API_KEY="sk-..."
-```
-
-Run the guided audit:
-
-```bash
-npx gatewaycheck https://api.example.com
 ```
 
 The guided audit:
@@ -120,6 +122,8 @@ $env:PACKY_API_KEY="sk-..."
 npx gatewaycheck audit https://api.example.com --key-env PACKY_API_KEY --yes
 ```
 
+You can also skip environment setup for one-off checks. GatewayCheck will ask for the key securely when the variable is missing.
+
 ### Give Model Hints
 
 Use model hints when `/v1/models` or `/api/pricing` is incomplete.
@@ -178,6 +182,8 @@ npx gatewaycheck audit https://api.example.com \
 | `gatewaycheck stream <config>` | test streaming transport |
 | `gatewaycheck cache <config>` | test prompt-cache signals |
 | `gatewaycheck init` | create `gatewaycheck.local.json` |
+| `gatewaycheck skill` | show Codex skill installation instructions |
+| `gatewaycheck skill --install` | install the bundled Codex skill |
 | `gatewaycheck doctor` | check local release readiness |
 
 Useful flags:
@@ -238,6 +244,20 @@ If a key has been pasted into chat, an issue, or a terminal transcript, rotate i
 ## Codex Skill
 
 The Codex skill lives at [skills/gatewaycheck/SKILL.md](skills/gatewaycheck/SKILL.md). Use it when you want an agent to choose the budget, decide whether to test representative or specified models, run the CLI, and interpret the report.
+
+Install the skill from the npm package:
+
+```bash
+npx gatewaycheck skill --install
+```
+
+Replace an existing local copy:
+
+```bash
+npx gatewaycheck skill --install --force
+```
+
+Then restart Codex or reload your TUI session so it can discover the skill.
 
 The CLI remains the source of truth for probes and report generation.
 

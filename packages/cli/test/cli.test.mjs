@@ -11,6 +11,7 @@ test('prints GatewayCheck help', () => {
   assert.match(result.stdout, /GatewayCheck/);
   assert.match(result.stdout, /gatewaycheck https:\/\/api\.example\.com/);
   assert.match(result.stdout, /gatewaycheck audit/);
+  assert.match(result.stdout, /gatewaycheck skill --install/);
   assert.match(result.stdout, /gatewaycheck doctor/);
   assert.match(result.stdout, /--lang <name>/);
   assert.match(result.stdout, /--plan-only/);
@@ -18,6 +19,12 @@ test('prints GatewayCheck help', () => {
 
 test('rejects raw API key flags', () => {
   const result = runCli(['audit', '--api-key', 'sk-test', '--yes']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /do not pass raw API keys/);
+});
+
+test('rejects raw API key equals flags', () => {
+  const result = runCli(['audit', '--api-key=sk-test', '--yes']);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /do not pass raw API keys/);
 });
@@ -33,6 +40,7 @@ test('requires configured key env before live audit', () => {
   ]);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /missing API key environment variable/);
+  assert.match(result.stderr, /PowerShell/);
 });
 
 test('runs local release doctor', () => {
