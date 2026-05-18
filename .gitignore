@@ -1,0 +1,11 @@
+node_modules/
+.npm-cache/
+.env
+.env.*
+*.local
+gatewaycheck.local.json
+reports/
+*.log
+coverage/
+.DS_Store
+Thumbs.db

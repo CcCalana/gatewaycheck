@@ -1,0 +1,67 @@
+{
+  "name": "gatewaycheck",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Cost-controlled checks for AI gateways, relay stations, and model proxies.",
+  "bin": {
+    "gatewaycheck": "./packages/cli/bin/gatewaycheck.mjs"
+  },
+  "files": [
+    "packages/core/src",
+    "packages/cli/bin",
+    "configs",
+    "docs",
+    "examples",
+    "skills",
+    "LICENSE",
+    "README.md",
+    "README.zh-CN.md"
+  ],
+  "keywords": [
+    "ai",
+    "llm",
+    "gateway",
+    "gatewaycheck",
+    "benchmark",
+    "relay",
+    "proxy",
+    "openai",
+    "anthropic",
+    "gemini",
+    "cli",
+    "audit"
+  ],
+  "workspaces": [
+    "packages/*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CcCalana/gatewaycheck.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CcCalana/gatewaycheck/issues"
+  },
+  "homepage": "https://github.com/CcCalana/gatewaycheck#readme",
+  "scripts": {
+    "gatewaycheck": "node packages/cli/bin/gatewaycheck.mjs",
+    "gc": "node packages/cli/bin/gatewaycheck.mjs",
+    "gb": "node packages/cli/bin/gatewaycheck.mjs",
+    "init": "node packages/cli/bin/gatewaycheck.mjs init",
+    "discover": "node packages/cli/bin/gatewaycheck.mjs discover",
+    "agent": "node packages/cli/bin/gatewaycheck.mjs agent",
+    "cache": "node packages/cli/bin/gatewaycheck.mjs cache",
+    "stream": "node packages/cli/bin/gatewaycheck.mjs stream",
+    "matrix": "node packages/cli/bin/gatewaycheck.mjs matrix",
+    "audit": "node packages/cli/bin/gatewaycheck.mjs audit",
+    "doctor": "node packages/cli/bin/gatewaycheck.mjs doctor",
+    "test": "node --test packages/core/test/*.test.mjs packages/cli/test/*.test.mjs",
+    "pack:dry-run": "npm pack --dry-run"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT"
+}

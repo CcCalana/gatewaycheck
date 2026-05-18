@@ -1,0 +1,22 @@
+{
+  "name": "Example Gateway",
+  "baseUrl": "https://api.example.com",
+  "apiKeyEnv": "GATEWAY_API_KEY",
+  "language": "auto",
+  "models": {
+    "cheap": "gpt-5.4-mini",
+    "openai": "gpt-5.4-mini",
+    "claude": "claude-sonnet-4-5-20250929",
+    "gemini": "gemini-2.5-flash-lite"
+  },
+  "requestBudget": {
+    "maxRequests": 8,
+    "maxOutputTokens": 64,
+    "timeoutMs": 90000
+  },
+  "cache": {
+    "promptCacheKey": "gatewaycheck-cache-probe",
+    "complexity": "agent",
+    "pauseMs": 2000
+  }
+}

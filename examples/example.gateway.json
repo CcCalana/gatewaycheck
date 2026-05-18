@@ -1,0 +1,16 @@
+{
+  "name": "Example Gateway",
+  "baseUrl": "https://api.example.com",
+  "apiKeyEnv": "GATEWAY_API_KEY",
+  "language": "en",
+  "models": {
+    "openai": "gpt-example-mini",
+    "claude": "claude-example",
+    "gemini": "gemini-example-flash"
+  },
+  "requestBudget": {
+    "maxRequests": 8,
+    "maxOutputTokens": 64,
+    "timeoutMs": 90000
+  }
+}
