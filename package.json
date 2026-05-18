@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Cost-controlled checks for AI gateways, relay stations, and model proxies.",
   "bin": {
-    "gatewaycheck": "./packages/cli/bin/gatewaycheck.mjs"
+    "gatewaycheck": "packages/cli/bin/gatewaycheck.mjs"
   },
   "files": [
     "packages/core/src",

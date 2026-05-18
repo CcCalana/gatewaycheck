@@ -181,7 +181,7 @@ async function doctor() {
   checks.push(check(packageJson?.license === 'MIT', 'package license is MIT', 'package license should be MIT'));
   checks.push(check(packageJson?.publishConfig?.access === 'public', 'npm publish access is public', 'publishConfig.access should be public'));
   checks.push(check(
-    packageJson?.bin?.gatewaycheck === './packages/cli/bin/gatewaycheck.mjs',
+    packageJson?.bin?.gatewaycheck === 'packages/cli/bin/gatewaycheck.mjs',
     'gatewaycheck bin is configured',
     'gatewaycheck bin is missing'
   ));
