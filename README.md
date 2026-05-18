@@ -6,9 +6,9 @@
 
 [中文文档](README.zh-CN.md)
 
-GatewayCheck is a low-cost diagnostic CLI for AI gateways, relay stations, and model proxies. It checks whether a gateway is reachable, which API protocols work, which models are visible, and whether routing, permissions, usage fields, and latency signals are trustworthy enough for real workloads.
+GatewayCheck is a low-cost diagnostic sensor for AI gateways, relay stations, and model proxies. It checks whether a gateway is reachable, which API protocols work, which models are visible, and whether routing, permissions, usage fields, and latency signals are trustworthy enough for real workloads.
 
-GatewayCheck is built for gateway users who want a practical answer before spending credits on agents, long chats, or production traffic.
+GatewayCheck is built for agent-led development flows: the CLI collects clean facts, and your coding agent writes the diagnosis.
 
 ## Quick Start
 
@@ -30,11 +30,23 @@ The first screen asks which setup path you want:
 Recommended agent-led flow:
 
 ```bash
+npx gatewaycheck init
 npx gatewaycheck install
 npx gatewaycheck prompt https://api.example.com
 ```
 
-Paste the generated prompt into Codex, Claude Code, Cursor, or another coding agent. The agent can use the GatewayCheck skill to plan the audit, run GatewayCheck, keep the request budget low, and explain the report.
+Paste the generated prompt into Codex, Claude Code, Cursor, or another coding agent. The agent can use the GatewayCheck skill to plan the audit, call GatewayCheck in `--agent` mode, keep the request budget low, and explain the JSON facts.
+
+Agent sensor mode:
+
+```bash
+npx gatewaycheck audit https://api.example.com \
+  --preset smart \
+  --plan-only \
+  --agent
+```
+
+`--agent` and `--json-only` print compact machine-readable JSON to stdout. No Markdown report, color output, spinner text, or progress UI is mixed into stdout.
 
 Direct guided CLI flow:
 
@@ -58,17 +70,17 @@ macOS / Linux:
 export GATEWAY_API_KEY="sk-..."
 ```
 
-The guided audit:
+The guided CLI audit:
 
 - discovers gateway metadata first
 - previews the selected model/protocol plan
 - asks before running credit-consuming matrix probes
-- prints a Markdown report
+- prints a Markdown report for human debugging
 
-For a non-interactive run:
+For a non-interactive agent run:
 
 ```bash
-npx gatewaycheck audit https://api.example.com --preset smart --yes
+npx gatewaycheck audit https://api.example.com --preset smart --yes --agent
 ```
 
 Save both Markdown and JSON:
@@ -125,10 +137,18 @@ GatewayCheck intentionally rejects raw key flags such as `--api-key` and `--key`
 
 ## Common Workflows
 
+### Mount GatewayCheck Into Agent Rules
+
+```bash
+npx gatewaycheck init
+```
+
+`init` updates existing rule files such as `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `.cursor/rules/gatewaycheck.mdc`, or `.github/copilot-instructions.md`. If none exist, it creates `AGENTS.md`.
+
 ### Preview Before Spending Credits
 
 ```bash
-npx gatewaycheck audit https://api.example.com --plan-only
+npx gatewaycheck audit https://api.example.com --plan-only --agent
 ```
 
 ### Choose Report Language
@@ -165,7 +185,7 @@ npx gatewaycheck audit https://api.example.com \
 Create a local config:
 
 ```bash
-gatewaycheck init
+gatewaycheck init --config
 ```
 
 Edit `gatewaycheck.local.json`, then run:
@@ -197,6 +217,8 @@ npx gatewaycheck audit https://api.example.com \
 | Command | Purpose |
 |---|---|
 | `gatewaycheck` | open the setup menu |
+| `gatewaycheck init` | mount GatewayCheck instructions into agent rule files |
+| `gatewaycheck init --config` | create `gatewaycheck.local.json` |
 | `gatewaycheck install` | install Skill + CLI and show agent next steps |
 | `gatewaycheck <url>` | start a CLI-only guided audit for a gateway URL |
 | `gatewaycheck check <url>` | same as CLI-only guided audit |
@@ -207,7 +229,6 @@ npx gatewaycheck audit https://api.example.com \
 | `gatewaycheck agent <config>` | test agent-client protocol support |
 | `gatewaycheck stream <config>` | test streaming transport |
 | `gatewaycheck cache <config>` | test prompt-cache signals |
-| `gatewaycheck init` | create `gatewaycheck.local.json` |
 | `gatewaycheck skill` | show Codex skill installation instructions |
 | `gatewaycheck skill --install` | install the bundled Codex skill |
 | `gatewaycheck doctor` | check local release readiness |
@@ -220,6 +241,8 @@ Useful flags:
 | `--preset quick\|smart\|broad` | request and token budget preset |
 | `--interactive` | ask before choosing audit coverage |
 | `--plan-only` | show the audit plan without matrix probes |
+| `--agent` | print compact machine-readable JSON facts for agents |
+| `--json-only` | alias for `--agent` |
 | `--lang auto\|en\|zh` | Markdown report language |
 | `--model <id>` | default OpenAI-compatible model hint |
 | `--openai-model <id>` | OpenAI-compatible model hint |
@@ -231,26 +254,25 @@ Useful flags:
 | `--max-tokens <n>` | max output tokens per probe |
 | `--md <path>` | save Markdown report |
 | `--out <path>` | save JSON report |
-| `--json` | print JSON to stdout |
+| `--json` | print the raw suite JSON to stdout |
 | `--yes` | confirm credit-consuming probes |
 
-## Reports
+## Agent Facts
 
-Audit reports summarize:
+In `--agent` mode, stdout is a single JSON object designed for model context. It includes:
 
-- overall health
-- discovery metadata
-- visible model count
-- pricing catalog availability
-- selected model/protocol plan
-- pass/fail matrix
-- latency and TTFT
-- token usage fields
-- model aliasing or route changes
-- key group and protocol permission failures
-- recommended next actions
+- `auth_status`: whether authenticated endpoints accepted the key, with HTTP status
+- `network_status`: timeout and transport failure counts
+- `discovery`: gateway family, visible model count, pricing groups, and sample models
+- `budget`: planned and used request budget
+- `matrix`: pass/fail/skip counts by model and protocol
+- `latency`: aggregate latency by endpoint and protocol
+- `token_usage`: prompt, completion, cached, and reasoning token facts
+- `cache`: observed prompt-cache hit signals
+- `routing`: requested model vs returned model changes
+- `probes`: per-endpoint raw facts for deeper agent analysis
 
-See [examples/redacted-audit.md](examples/redacted-audit.md) for a redacted report example.
+Exit code `0` means GatewayCheck collected usable facts. Exit code `1` is reserved for fatal blockers such as authentication failure or network/transport failure that prevents useful diagnosis. Human Markdown reports remain available through the guided CLI and `--md`.
 
 ## Security And Privacy
 

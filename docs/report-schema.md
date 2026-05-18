@@ -4,6 +4,65 @@ CLI output should stay JSON-serializable and platform-friendly.
 
 New suites should use the `0.2` envelope. Existing suites may still emit the earlier compact shape until migrated.
 
+Agent mode is the primary integration surface for coding agents:
+
+```bash
+npx gatewaycheck audit https://api.example.com --preset smart --plan-only --agent
+```
+
+`--agent` and `--json-only` emit a compact `0.1` facts envelope to stdout:
+
+```json
+{
+  "schemaVersion": "0.1",
+  "producedBy": "gatewaycheck",
+  "mode": "agent",
+  "suite": "audit",
+  "status": "degraded",
+  "ok": true,
+  "exitCode": 0,
+  "gateway": {
+    "name": "Example Gateway",
+    "baseUrl": "https://api.example.com",
+    "family": "new-api-like"
+  },
+  "facts": {
+    "auth_status": {
+      "checked": true,
+      "ok": true,
+      "http_status": 200,
+      "endpoint": "/v1/models"
+    },
+    "network_status": {
+      "checked": true,
+      "ok": true,
+      "status_zero_count": 0,
+      "timeout_count": 0
+    },
+    "matrix": {
+      "pass_count": 2,
+      "fail_count": 1,
+      "skip_count": 0,
+      "protocols": ["openai-chat", "openai-stream"]
+    },
+    "token_usage": {
+      "prompt_tokens": 42,
+      "completion_tokens": 3,
+      "cached_tokens": 0,
+      "reasoning_tokens": 0,
+      "cache_hit": false
+    },
+    "routing": {
+      "changed": true,
+      "changes": []
+    },
+    "probes": []
+  }
+}
+```
+
+In agent mode, stdout must remain a single JSON object. Human Markdown and raw suite JSON are fallback surfaces for manual debugging.
+
 ```json
 {
   "schemaVersion": "0.2",
@@ -132,7 +191,7 @@ Known matrix protocol IDs:
 - `anthropic-messages`
 - `gemini-generate`
 
-Audit suites wrap discovery, matrix, and narrative analysis:
+Raw audit suites wrap discovery, matrix, and optional human-facing analysis. Agent integrations should prefer `--agent` instead of depending on this narrative section:
 
 ```json
 {

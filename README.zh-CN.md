@@ -6,9 +6,9 @@
 
 [English README](README.md)
 
-GatewayCheck 是一个面向 AI 中转站、网关和模型代理的低成本诊断 CLI。它会检查网关是否可访问、哪些 API 协议可用、哪些模型可见，以及路由、权限、usage 字段和延迟信号是否足够可信。
+GatewayCheck 是一个面向 AI 中转站、网关和模型代理的低成本诊断传感器。它会检查网关是否可访问、哪些 API 协议可用、哪些模型可见，以及路由、权限、usage 字段和延迟信号是否足够可信。
 
-GatewayCheck 适合在正式使用某个中转站前快速做一次安全、低成本、可复现的检查。
+GatewayCheck 面向 agent-led 开发流：CLI 负责采集干净事实，coding agent 负责诊断和报告。
 
 ## 快速开始
 
@@ -30,11 +30,23 @@ npx gatewaycheck
 推荐的 agent 自动测评流程：
 
 ```bash
+npx gatewaycheck init
 npx gatewaycheck install
 npx gatewaycheck prompt https://api.example.com
 ```
 
-把生成的提示词粘贴给 Codex、Claude Code、Cursor 或其他 coding agent。agent 可以使用 GatewayCheck skill 规划测评、运行 GatewayCheck、控制请求预算并解释报告。
+把生成的提示词粘贴给 Codex、Claude Code、Cursor 或其他 coding agent。agent 可以使用 GatewayCheck skill 规划测评、用 `--agent` 模式调用 GatewayCheck、控制请求预算并解释 JSON 事实。
+
+Agent 传感器模式：
+
+```bash
+npx gatewaycheck audit https://api.example.com \
+  --preset smart \
+  --plan-only \
+  --agent
+```
+
+`--agent` 和 `--json-only` 会向 stdout 输出紧凑的机读 JSON。stdout 不会混入 Markdown 报告、颜色代码、spinner 或进度 UI。
 
 直接使用 CLI 引导流程：
 
@@ -58,17 +70,17 @@ macOS / Linux:
 export GATEWAY_API_KEY="sk-..."
 ```
 
-引导式审计会：
+CLI 引导式审计会：
 
 - 先发现网关元数据
 - 预览将要测试的模型和协议
 - 在执行消耗额度的矩阵探针前询问确认
-- 输出 Markdown 报告
+- 输出给人类调试用的 Markdown 报告
 
-如果你想跳过交互：
+如果你想让 agent 非交互运行：
 
 ```bash
-npx gatewaycheck audit https://api.example.com --preset smart --yes
+npx gatewaycheck audit https://api.example.com --preset smart --yes --agent
 ```
 
 同时保存 Markdown 和 JSON：
@@ -125,10 +137,18 @@ GatewayCheck 会拒绝 `--api-key`、`--key` 这类裸 key 参数。
 
 ## 常见用法
 
+### 挂载到 Agent 规则文件
+
+```bash
+npx gatewaycheck init
+```
+
+`init` 会更新已有的 `AGENTS.md`、`CLAUDE.md`、`.cursorrules`、`.cursor/rules/gatewaycheck.mdc` 或 `.github/copilot-instructions.md`。如果这些文件都不存在，它会创建 `AGENTS.md`。
+
 ### 先预览，不消耗矩阵额度
 
 ```bash
-npx gatewaycheck audit https://api.example.com --plan-only
+npx gatewaycheck audit https://api.example.com --plan-only --agent
 ```
 
 ### 指定报告语言
@@ -165,7 +185,7 @@ npx gatewaycheck audit https://api.example.com \
 创建本地配置：
 
 ```bash
-gatewaycheck init
+gatewaycheck init --config
 ```
 
 编辑 `gatewaycheck.local.json` 后运行：
@@ -197,6 +217,8 @@ npx gatewaycheck audit https://api.example.com \
 | 命令 | 作用 |
 |---|---|
 | `gatewaycheck` | 打开安装/使用模式菜单 |
+| `gatewaycheck init` | 把 GatewayCheck 使用说明挂载到 agent 规则文件 |
+| `gatewaycheck init --config` | 创建 `gatewaycheck.local.json` |
 | `gatewaycheck install` | 安装 Skill + CLI，并显示 agent 使用指引 |
 | `gatewaycheck <url>` | 对指定网关启动 CLI-only 引导式审计 |
 | `gatewaycheck check <url>` | 同 CLI-only 引导式审计 |
@@ -207,7 +229,6 @@ npx gatewaycheck audit https://api.example.com \
 | `gatewaycheck agent <config>` | 测试 agent-client 协议支持 |
 | `gatewaycheck stream <config>` | 测试流式传输 |
 | `gatewaycheck cache <config>` | 测试 prompt cache 信号 |
-| `gatewaycheck init` | 创建 `gatewaycheck.local.json` |
 | `gatewaycheck skill` | 显示 Codex skill 安装说明 |
 | `gatewaycheck skill --install` | 安装随包附带的 Codex skill |
 | `gatewaycheck doctor` | 检查本地发布准备度 |
@@ -220,6 +241,8 @@ npx gatewaycheck audit https://api.example.com \
 | `--preset quick\|smart\|broad` | 请求和 token 预算档位 |
 | `--interactive` | 在选择审计覆盖范围前询问用户 |
 | `--plan-only` | 只展示审计计划，不执行矩阵探针 |
+| `--agent` | 输出给 agent 使用的紧凑机读 JSON 事实 |
+| `--json-only` | `--agent` 的别名 |
 | `--lang auto\|en\|zh` | Markdown 报告语言 |
 | `--model <id>` | 默认 OpenAI 兼容模型提示 |
 | `--openai-model <id>` | OpenAI 兼容模型提示 |
@@ -231,26 +254,25 @@ npx gatewaycheck audit https://api.example.com \
 | `--max-tokens <n>` | 每个 probe 的输出 token 上限 |
 | `--md <path>` | 保存 Markdown 报告 |
 | `--out <path>` | 保存 JSON 报告 |
-| `--json` | 输出 JSON 到 stdout |
+| `--json` | 输出原始 suite JSON 到 stdout |
 | `--yes` | 确认执行消耗额度的探针 |
 
-## 报告内容
+## Agent Facts
 
-审计报告会汇总：
+在 `--agent` 模式下，stdout 是单个 JSON 对象，适合直接进入模型上下文。它包含：
 
-- 整体健康状态
-- discovery 元数据
-- 可见模型数量
-- 价格目录可用性
-- 选中的模型/协议计划
-- pass/fail 矩阵
-- 延迟和 TTFT
-- token usage 字段
-- 模型别名或路由变化
-- key 分组和协议权限失败
-- 建议的下一步动作
+- `auth_status`：鉴权是否通过，以及对应 HTTP 状态码
+- `network_status`：超时和传输失败数量
+- `discovery`：网关类型、可见模型数、价格分组和模型样本
+- `budget`：计划请求数和已使用请求数
+- `matrix`：按模型和协议统计的 pass/fail/skip
+- `latency`：按 endpoint 和 protocol 聚合的延迟
+- `token_usage`：prompt、completion、cached、reasoning token 事实
+- `cache`：prompt cache 命中信号
+- `routing`：请求模型与实际返回模型的差异
+- `probes`：每个 endpoint 的底层事实，供 agent 深入分析
 
-可参考 [examples/redacted-audit.md](examples/redacted-audit.md) 查看脱敏报告样例。
+退出码 `0` 表示 GatewayCheck 已采集到可用事实。退出码 `1` 保留给鉴权失败、断网或传输故障这类阻止诊断继续进行的致命问题。人类可读 Markdown 仍然可以通过 CLI 引导流程和 `--md` 生成。
 
 ## 安全与隐私
 

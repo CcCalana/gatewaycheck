@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const cli = resolve('packages/cli/bin/gatewaycheck.mjs');
@@ -12,10 +13,13 @@ test('prints GatewayCheck help', () => {
   assert.match(result.stdout, /gatewaycheck https:\/\/api\.example\.com/);
   assert.match(result.stdout, /gatewaycheck prompt https:\/\/api\.example\.com/);
   assert.match(result.stdout, /gatewaycheck install/);
+  assert.match(result.stdout, /gatewaycheck init --config/);
   assert.match(result.stdout, /gatewaycheck audit/);
   assert.match(result.stdout, /gatewaycheck skill --install/);
   assert.match(result.stdout, /gatewaycheck doctor/);
   assert.match(result.stdout, /--lang <name>/);
+  assert.match(result.stdout, /--agent/);
+  assert.match(result.stdout, /--json-only/);
   assert.match(result.stdout, /--plan-only/);
 });
 
@@ -57,7 +61,28 @@ test('prints agent-ready prompt', () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /Copy this prompt into Codex/);
   assert.match(result.stdout, /Gateway URL: https:\/\/api\.example\.com/);
+  assert.match(result.stdout, /--agent/);
+  assert.match(result.stdout, /machine-readable JSON facts/);
   assert.match(result.stdout, /Do not ask me to paste the API key into chat/);
+});
+
+test('prints machine-readable JSON for agent errors', () => {
+  const result = runCli([
+    'audit',
+    '--base-url',
+    'https://api.example.com',
+    '--key-env',
+    'GATEWAYCHECK_TEST_MISSING_KEY',
+    '--yes',
+    '--agent',
+  ]);
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, '');
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.mode, 'agent');
+  assert.equal(payload.ok, false);
+  assert.equal(payload.exitCode, 1);
+  assert.match(payload.facts.error.message, /GATEWAYCHECK_TEST_MISSING_KEY/);
 });
 
 test('prints menu for no-argument non-tty use', () => {
@@ -65,6 +90,23 @@ test('prints menu for no-argument non-tty use', () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, /Agent mode: install Skill \+ CLI/);
   assert.match(result.stdout, /CLI mode: run a guided audit/);
+});
+
+test('mounts GatewayCheck into agent rules', () => {
+  const root = resolve('.tmp-cli-init-test');
+  rmSync(root, { recursive: true, force: true });
+  mkdirSync(root, { recursive: true });
+  try {
+    const result = runCli(['init', '--cwd', root]);
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /agent rules installed/);
+    const agents = readFileSync(resolve(root, 'AGENTS.md'), 'utf8');
+    assert.match(agents, /gatewaycheck:agent-rule:start/);
+    assert.match(agents, /--agent/);
+    assert.match(agents, /stdout as compact JSON facts/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 function runCli(args) {

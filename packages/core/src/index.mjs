@@ -16,6 +16,10 @@ export {
   resolveReportLanguage,
 } from './runtime/audit-report.mjs';
 export {
+  createAgentFacts,
+  createAgentError,
+} from './runtime/agent-facts.mjs';
+export {
   requestSseJson,
   parseSseDataBlock,
   drainSseDataEvents,

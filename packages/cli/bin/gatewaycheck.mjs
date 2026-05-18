@@ -8,6 +8,8 @@ import { stdin as input, stdout as output } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import {
   buildAuditMatrixConfig,
+  createAgentError,
+  createAgentFacts,
   discoverGateway,
   loadConfig,
   resolveApiKey,
@@ -21,6 +23,8 @@ import {
 } from '../../core/src/index.mjs';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const GATEWAYCHECK_RULE_START = '<!-- gatewaycheck:agent-rule:start -->';
+const GATEWAYCHECK_RULE_END = '<!-- gatewaycheck:agent-rule:end -->';
 
 const commands = {
   wizard,
@@ -51,6 +55,11 @@ try {
   const handler = commands[command] ?? help;
   await handler(args);
 } catch (error) {
+  if (isAgentModeArgs(process.argv.slice(2))) {
+    const payload = createAgentError(new Error(sanitizeForLog(error.message)));
+    console.log(JSON.stringify(payload, null, 2));
+    process.exit(1);
+  }
   console.error(`\nERROR: ${sanitizeForLog(error.message)}\n`);
   if (process.env.DEBUG) console.error(error.stack);
   process.exit(1);
@@ -204,23 +213,56 @@ async function agentPrompt(args) {
     'Do not ask me to paste the API key into chat. If the environment variable is missing, run GatewayCheck and let it ask for the key securely in the terminal.',
     'If your shell is non-interactive and GatewayCheck cannot prompt for the key, ask me to set the environment variable locally before running live probes.',
     '',
-    'Start with a plan-only or guided audit. Keep the request budget low. Explain the selected models and protocols before running credit-consuming probes. After the run, summarize compatibility, permission issues, model routing signals, usage transparency, latency, and recommended next steps.',
+    'Treat GatewayCheck as a sensor, not a reporter. Read its stdout as machine-readable JSON facts, then write the diagnosis yourself.',
+    'Start with a plan-only audit. Keep the request budget low. Explain the selected models and protocols before running credit-consuming probes. After the run, summarize compatibility, permission issues, model routing signals, usage transparency, latency, and recommended next steps.',
     '',
     'Useful commands:',
-    `npx gatewaycheck audit ${baseUrl} --key-env ${keyEnv} --preset ${preset} --plan-only --lang ${lang}`,
-    `npx gatewaycheck audit ${baseUrl} --key-env ${keyEnv} --preset ${preset} --yes --lang ${lang}`,
+    `npx gatewaycheck audit ${baseUrl} --key-env ${keyEnv} --preset ${preset} --plan-only --lang ${lang} --agent`,
+    `npx gatewaycheck audit ${baseUrl} --key-env ${keyEnv} --preset ${preset} --yes --lang ${lang} --agent`,
     '',
     '---',
   ].join('\n');
   console.log(prompt);
 }
 
-async function init() {
+async function init(args = []) {
+  if (!args.includes('--config')) {
+    await initAgentRules(args);
+    return;
+  }
   const source = resolve(packageRoot, 'configs/example.gateway.json');
   const target = resolve('gatewaycheck.local.json');
   await copyFile(source, target);
   console.log(`Created ${target}`);
   console.log('Set your API key in the environment variable named by apiKeyEnv before key-required suites.');
+}
+
+async function initAgentRules(args) {
+  const root = resolve(stringOption(args, '--cwd') ?? '.');
+  const explicitTargets = listOption(args, '--target');
+  const targets = explicitTargets.length
+    ? explicitTargets.map((target) => resolveInside(root, target))
+    : await discoverAgentRuleTargets(root);
+  const block = agentRuleBlock();
+  const results = [];
+
+  for (const target of targets) {
+    const previous = await readTextIfExists(target);
+    const next = upsertMarkedBlock(previous ?? '', block);
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, next, { mode: 0o600 });
+    results.push({
+      file: target,
+      action: previous === null ? 'created' : previous.includes(GATEWAYCHECK_RULE_START) ? 'updated' : 'appended',
+    });
+  }
+
+  console.log('GatewayCheck agent rules installed:');
+  for (const result of results) {
+    console.log(`- ${result.action}: ${result.file}`);
+  }
+  console.log('');
+  console.log('Agents should call GatewayCheck with --agent and treat stdout as JSON facts.');
 }
 
 async function discover(args) {
@@ -233,7 +275,7 @@ async function discover(args) {
     // Discovery can run without key; /v1/models will be skipped.
   }
   const report = await discoverGateway(config, apiKey);
-  await printAndMaybeSave(report, args);
+  await emitReport(report, args);
 }
 
 async function agent(args) {
@@ -242,7 +284,7 @@ async function agent(args) {
   const config = await loadConfigFromArgs(args);
   const apiKey = await resolveApiKeyOrPrompt(config);
   const report = await runAgentCompatibilitySuite(config, apiKey);
-  await printAndMaybeSave(report, args);
+  await emitReport(report, args);
 }
 
 async function cache(args) {
@@ -251,7 +293,7 @@ async function cache(args) {
   const config = await loadConfigFromArgs(args);
   const apiKey = await resolveApiKeyOrPrompt(config);
   const report = await runCacheSuite(config, apiKey);
-  await printAndMaybeSave(report, args);
+  await emitReport(report, args);
 }
 
 async function stream(args) {
@@ -260,7 +302,7 @@ async function stream(args) {
   const config = await loadConfigFromArgs(args);
   const apiKey = await resolveApiKeyOrPrompt(config);
   const report = await runStreamSuite(config, apiKey);
-  await printAndMaybeSave(report, args);
+  await emitReport(report, args);
 }
 
 async function matrix(args) {
@@ -269,7 +311,7 @@ async function matrix(args) {
   const config = await loadConfigFromArgs(args);
   const apiKey = await resolveApiKeyOrPrompt(config);
   const report = await runMatrixSuite(config, apiKey);
-  await printAndMaybeSave(report, args);
+  await emitReport(report, args);
 }
 
 async function audit(args) {
@@ -304,7 +346,10 @@ Usage:
   gatewaycheck check https://api.example.com
   gatewaycheck prompt https://api.example.com
   gatewaycheck install
+  gatewaycheck init
+  gatewaycheck init --config
   gatewaycheck audit https://api.example.com --yes
+  gatewaycheck audit https://api.example.com --agent --plan-only
   gatewaycheck audit https://api.example.com --plan-only
   gatewaycheck discover [config-or-flags]
   gatewaycheck agent [config-or-flags] --yes
@@ -315,7 +360,6 @@ Usage:
   gatewaycheck skill
   gatewaycheck skill --install
   gatewaycheck doctor
-  gatewaycheck init
 
 Source checkout:
   npm run audit -- --base-url https://api.example.com --key-env GATEWAY_API_KEY --yes
@@ -338,10 +382,13 @@ Options:
   --preset <name>    Audit budget preset: quick, smart, broad
   --interactive      Ask before choosing audit coverage
   --plan-only        Show audit plan without running matrix probes
+  --agent            Print compact machine-readable JSON facts for agents
+  --json-only        Alias for --agent
   --lang <name>      Report language: auto, en, zh
   --out <path>       Save JSON report
   --md <path>        Save Markdown audit report
   --json             Print JSON to stdout
+  --config           With init, create gatewaycheck.local.json instead of agent rules
   --max-models <n>   Audit planner model limit
   --max-requests <n> Audit request budget for matrix phase
   --max-tokens <n>   Audit max output tokens
@@ -395,6 +442,46 @@ Next steps for agent-led audits:
 You can generate a ready-to-paste prompt with:
   gatewaycheck prompt https://api.example.com
 `);
+}
+
+async function discoverAgentRuleTargets(root) {
+  const candidates = [
+    'AGENTS.md',
+    'CLAUDE.md',
+    '.cursorrules',
+    '.cursor/rules/gatewaycheck.mdc',
+    '.github/copilot-instructions.md',
+  ].map((target) => resolveInside(root, target));
+  const existing = [];
+  for (const candidate of candidates) {
+    if (await pathExists(candidate)) existing.push(candidate);
+  }
+  return existing.length ? existing : [resolveInside(root, 'AGENTS.md')];
+}
+
+function agentRuleBlock() {
+  return `${GATEWAYCHECK_RULE_START}
+## GatewayCheck Agent Sensor
+
+When diagnosing AI gateway connectivity, model routing, protocol compatibility, streaming, prompt-cache behavior, token usage, or billing transparency, use GatewayCheck as a machine-readable sensor.
+
+- Prefer: \`npx gatewaycheck audit <gateway-url> --key-env GATEWAY_API_KEY --preset smart --plan-only --agent\`
+- After explaining the request budget, run live probes with: \`npx gatewaycheck audit <gateway-url> --key-env GATEWAY_API_KEY --preset smart --yes --agent\`
+- Treat stdout as compact JSON facts. Do not rely on GatewayCheck to write the final human report.
+- Do not ask the user to paste raw API keys into chat. If the environment variable is missing, ask them to set it locally or run the guided CLI flow.
+- Use \`quick\` or \`smart\` first. Use \`broad\` only after the user asks for wider coverage.
+${GATEWAYCHECK_RULE_END}
+`;
+}
+
+function upsertMarkedBlock(content, block) {
+  if (!content) return block;
+  const start = content.indexOf(GATEWAYCHECK_RULE_START);
+  const end = content.indexOf(GATEWAYCHECK_RULE_END);
+  if (start >= 0 && end >= start) {
+    return `${content.slice(0, start)}${block}${content.slice(end + GATEWAYCHECK_RULE_END.length).replace(/^\s*\n?/, '')}`;
+  }
+  return `${content.replace(/\s*$/, '')}\n\n${block}`;
 }
 
 async function doctor() {
@@ -517,6 +604,8 @@ function firstNonFlag(args) {
     '--preset',
     '--lang',
     '--timeout-ms',
+    '--target',
+    '--cwd',
   ]);
   return args.find((arg, idx) => !arg.startsWith('--') && !valueFlags.has(args[idx - 1]) && !isUrlLike(arg));
 }
@@ -605,6 +694,10 @@ async function printAuditPlan(config, apiKey, options, args) {
     auditPlan: plan,
   });
 
+  if (isAgentMode(args)) {
+    await emitAgentReport(report, args);
+    return { report, discovery, matrixConfig, plan };
+  }
   if (args.includes('--json')) {
     await printAndMaybeSave(report, args);
     return { report, discovery, matrixConfig, plan };
@@ -684,6 +777,10 @@ async function printAndMaybeSave(report, args, options = {}) {
 }
 
 async function printAuditAndMaybeSave(report, markdown, args) {
+  if (isAgentMode(args)) {
+    await emitAgentReport(report, args);
+    return;
+  }
   const mdIdx = args.indexOf('--md');
   if (mdIdx >= 0 && args[mdIdx + 1]) {
     const mdPath = resolve(args[mdIdx + 1]);
@@ -694,6 +791,31 @@ async function printAuditAndMaybeSave(report, markdown, args) {
     console.log(markdown);
   }
   await printAndMaybeSave(report, args, { printDefault: false });
+}
+
+async function emitReport(report, args) {
+  if (isAgentMode(args)) {
+    await emitAgentReport(report, args);
+    return;
+  }
+  await printAndMaybeSave(report, args);
+}
+
+async function emitAgentReport(report, args) {
+  const payload = createAgentFacts(report);
+  const json = JSON.stringify(payload, null, 2);
+  console.log(json);
+  await saveJsonIfRequested(json, args);
+  process.exitCode = payload.exitCode;
+}
+
+async function saveJsonIfRequested(json, args) {
+  const outIdx = args.indexOf('--out');
+  if (outIdx >= 0 && args[outIdx + 1]) {
+    const outPath = resolve(args[outIdx + 1]);
+    await mkdir(dirname(outPath), { recursive: true });
+    await writeFile(outPath, json, { mode: 0o600 });
+  }
 }
 
 function parseAuditOptions(args) {
@@ -771,6 +893,14 @@ function recommendCoverage(visible, pricing) {
 function commandFromArg(arg) {
   if (isUrlLike(arg)) return 'wizard';
   return arg;
+}
+
+function isAgentMode(args) {
+  return isAgentModeArgs(args);
+}
+
+function isAgentModeArgs(args) {
+  return args.includes('--agent') || args.includes('--json-only');
 }
 
 function hasGatewayInput(args) {
@@ -930,6 +1060,15 @@ function urlArgument(args) {
 
 function isUrlLike(value) {
   return /^https:\/\/[^ ]+/i.test(String(value ?? ''));
+}
+
+function resolveInside(root, target) {
+  const rootPath = resolve(root);
+  const targetPath = resolve(rootPath, target);
+  if (targetPath !== rootPath && !targetPath.startsWith(`${rootPath}\\`) && !targetPath.startsWith(`${rootPath}/`)) {
+    throw new Error(`refusing to write outside project root: ${target}`);
+  }
+  return targetPath;
 }
 
 function printMissingKeyHelp(keyEnv) {

@@ -14,16 +14,21 @@ description: Benchmark and audit AI API gateways, relay stations, New API deploy
 - Keep `max_tokens` low unless the user asks for quality or long-context tests.
 - State request count and expected token budget before running live tests.
 - Distinguish agent-client compatibility from hosted agent runtime support.
+- Treat GatewayCheck as a sensor. You write the diagnosis; the CLI returns facts.
 
 ## Agent-Led Entry
 
 When the user asks to audit a gateway from an agent or TUI:
 
 1. Confirm the gateway URL, API key environment variable name, budget preset, and report language.
-2. Run `npx gatewaycheck audit <url> --key-env <env> --preset smart --plan-only --lang auto` first unless the user already chose a specific preset or language.
-3. Explain the selected models, protocols, and request budget before adding `--yes`.
-4. If the key environment variable is missing in a non-interactive shell, ask the user to set it locally or run the CLI guided flow; do not ask them to paste a raw key into chat.
-5. Prefer `quick` or `smart`; use `broad` only after the user explicitly asks for wider coverage.
+2. Run `npx gatewaycheck audit <url> --key-env <env> --preset smart --plan-only --lang auto --agent` first unless the user already chose a specific preset or language.
+3. Parse stdout as JSON facts. Do not ask GatewayCheck to produce the final human report.
+4. Explain the selected models, protocols, and request budget before adding `--yes`.
+5. Run live probes with `npx gatewaycheck audit <url> --key-env <env> --preset smart --yes --lang auto --agent`.
+6. Use `facts.auth_status`, `facts.network_status`, `facts.matrix`, `facts.latency`, `facts.token_usage`, `facts.cache`, `facts.routing`, and `facts.probes` as the evidence base.
+7. If the process exits `1`, inspect the JSON error/facts first; this usually means auth or network blocked useful diagnosis.
+8. If the key environment variable is missing in a non-interactive shell, ask the user to set it locally or run the CLI guided flow; do not ask them to paste a raw key into chat.
+9. Prefer `quick` or `smart`; use `broad` only after the user explicitly asks for wider coverage.
 
 ## Workflow
 
@@ -67,9 +72,10 @@ When the user asks to audit a gateway from an agent or TUI:
    - If pricing metadata is absent, use configured model roles and model-name hints:
      `gpt`/`codex` for OpenAI Responses, `claude` for Anthropic Messages, and `gemini` for Gemini native.
    - Run a bounded matrix.
-   - Produce JSON plus a Markdown analysis table.
+   - Use `--agent` for machine-readable JSON facts.
+   - You produce the human diagnosis from those facts.
    - Call out permission issues, reasoning-token budget issues, protocol failures, and CLI-only restrictions.
-   - Use `audit --plan-only` first when model count is large, pricing is missing, or the user has not chosen a coverage level.
+   - Use `audit --plan-only --agent` first when model count is large, pricing is missing, or the user has not chosen a coverage level.
 
 8. Produce a compact report:
    - Pass/fail per endpoint.
@@ -94,10 +100,12 @@ Use these classifications:
 If the GatewayCheck project is available, prefer its CLI and core modules:
 
 ```bash
+npx gatewaycheck audit --base-url https://api.example.com --key-env GATEWAY_API_KEY --preset smart --plan-only --lang auto --agent
+npx gatewaycheck audit --base-url https://api.example.com --key-env GATEWAY_API_KEY --preset smart --yes --lang auto --agent
 npx gatewaycheck audit --base-url https://api.example.com --key-env GATEWAY_API_KEY --preset smart --yes --out reports/audit.json --md reports/audit.md
-npx gatewaycheck audit --base-url https://api.example.com --key-env GATEWAY_API_KEY --preset smart --plan-only --lang auto
+npm run audit -- --base-url https://api.example.com --key-env GATEWAY_API_KEY --preset smart --plan-only --lang auto --agent
+npm run audit -- --base-url https://api.example.com --key-env GATEWAY_API_KEY --preset smart --yes --lang auto --agent
 npm run audit -- --base-url https://api.example.com --key-env GATEWAY_API_KEY --preset smart --yes --out reports/audit.json --md reports/audit.md
-npm run audit -- --base-url https://api.example.com --key-env GATEWAY_API_KEY --preset smart --plan-only --lang auto
 npm run discover -- gatewaycheck.local.json
 npm run agent -- gatewaycheck.local.json --yes
 npm run cache -- gatewaycheck.local.json --yes
