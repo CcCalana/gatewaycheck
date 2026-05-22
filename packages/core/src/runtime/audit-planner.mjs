@@ -1,3 +1,5 @@
+import { numberOrZero } from './utils.mjs';
+
 const DEFAULT_AUDIT_MODELS = 4;
 
 export function buildAuditMatrixConfig(config, discoveryReport, options = {}) {
@@ -224,9 +226,4 @@ function hasCostHint(model) {
 function numberOrInf(value) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : Number.POSITIVE_INFINITY;
-}
-
-function numberOrZero(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
 }

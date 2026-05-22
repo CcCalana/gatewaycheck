@@ -55,7 +55,9 @@
     "audit": "node packages/cli/bin/gatewaycheck.mjs audit",
     "doctor": "node packages/cli/bin/gatewaycheck.mjs doctor",
     "test": "node --test packages/core/test/*.test.mjs packages/cli/test/*.test.mjs",
-    "pack:dry-run": "npm pack --dry-run"
+    "lint": "eslint packages/",
+    "pack:dry-run": "npm pack --dry-run",
+    "prepublishOnly": "npm test && npm run lint"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -63,5 +65,10 @@
   "publishConfig": {
     "access": "public"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.4.0",
+    "nock": "^14.0.15"
+  }
 }

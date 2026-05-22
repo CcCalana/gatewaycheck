@@ -7,6 +7,7 @@ import {
   normalizeOpenAIUsage,
   normalizeResponsesUsage,
 } from '../runtime/usage.mjs';
+import { weatherToolOpenAI, skipProbeResult } from './probe-helpers.mjs';
 
 const DEFAULT_PROTOCOLS = Object.freeze(['openai-chat']);
 const PROTOCOLS = Object.freeze({
@@ -29,7 +30,7 @@ export async function runMatrixSuite(config, apiKey) {
 
   for (const item of plan) {
     if (requestCount >= maxRequests) {
-      results.push(skipResult(item, 'request budget exhausted'));
+      results.push(skipProbeResult(`${item.protocol}:${item.model}`, item.protocol, item.label, 'request budget exhausted'));
       continue;
     }
     results.push(await runMatrixProbe({ config, apiKey, item, maxTokens, timeoutMs }));
@@ -119,7 +120,7 @@ async function runMatrixProbe({ config, apiKey, item, maxTokens, timeoutMs }) {
   if (item.protocol === PROTOCOLS.geminiGenerate) {
     return probeGeminiGenerate(config, apiKey, item, maxTokens, timeoutMs);
   }
-  return skipResult(item, `unknown protocol: ${item.protocol}`);
+  return skipProbeResult(`${item.protocol}:${item.model}`, item.protocol, item.label, `unknown protocol: ${item.protocol}`);
 }
 
 async function probeOpenAIChat(config, apiKey, item, maxTokens, timeoutMs) {
@@ -344,25 +345,6 @@ function result(item, endpoint, method, response, extra) {
   });
 }
 
-function skipResult(item, reason) {
-  return Object.freeze({
-    id: `${item.protocol}:${item.model}`,
-    protocol: item.protocol,
-    label: item.label,
-    status: 'skip',
-    endpoint: null,
-    method: null,
-    httpStatus: 0,
-    latencyMs: 0,
-    model: item.model,
-    metrics: Object.freeze({}),
-    usage: null,
-    signals: Object.freeze({ reason }),
-    headers: Object.freeze({}),
-    error: reason,
-  });
-}
-
 function inferMatrixModels(config, defaultProtocols) {
   const models = config.models ?? {};
   const entries = [];
@@ -402,21 +384,6 @@ function freezeTallies(tallies) {
     });
   }
   return Object.freeze(output);
-}
-
-function weatherToolOpenAI() {
-  return {
-    type: 'function',
-    function: {
-      name: 'get_weather',
-      description: 'Get current weather for a city.',
-      parameters: {
-        type: 'object',
-        properties: { city: { type: 'string', description: 'City name' } },
-        required: ['city'],
-      },
-    },
-  };
 }
 
 function chatFailureReason({ response, content, finishReason }) {

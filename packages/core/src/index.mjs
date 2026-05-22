@@ -34,9 +34,18 @@ export {
   extractReasoningTokens,
   cacheHitRatePct,
 } from './runtime/usage.mjs';
+export {
+  validateExternalHttps,
+  deepFreeze,
+  numberOrNull,
+  numberOrZero,
+  round,
+  roundMs,
+} from './runtime/utils.mjs';
 export { discoverGateway } from './suites/discovery.mjs';
 export { runAgentCompatibilitySuite } from './suites/agent-compat.mjs';
 export { runCacheSuite, buildCachePrompt } from './suites/cache.mjs';
 export { runStreamSuite } from './suites/stream.mjs';
 export { runMatrixSuite, resolveMatrixPlan, summarizeMatrixResults } from './suites/matrix.mjs';
 export { runAuditSuite } from './suites/audit.mjs';
+export { weatherToolOpenAI, weatherToolClaude, buildProbeResult, skipProbeResult } from './suites/probe-helpers.mjs';

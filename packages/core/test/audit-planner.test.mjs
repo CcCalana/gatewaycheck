@@ -136,6 +136,7 @@ test('renders markdown audit report', () => {
   const md = renderAuditMarkdown({
     gateway: { name: 'Gateway', baseUrl: 'https://api.example.com' },
     generatedAt: '2026-05-17T00:00:00.000Z',
+    language: 'en',
     discovery: {
       gateway: { family: 'new-api-like' },
       modelSummary: { count: 1 },
@@ -157,7 +158,7 @@ test('renders markdown audit report', () => {
     },
     analysis,
     auditPlan: [{ id: 'model-a', protocols: ['openai-chat'], label: 'Candidate' }],
-  });
+  }, { language: 'en' });
 
   assert.match(md, /GatewayCheck Audit Report/);
   assert.match(md, /Recommended Actions/);

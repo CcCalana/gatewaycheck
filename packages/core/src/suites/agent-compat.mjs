@@ -1,5 +1,6 @@
 import { requestJson } from '../runtime/http-client.mjs';
 import { normalizeOpenAIUsage, normalizeResponsesUsage, normalizeClaudeUsage } from '../runtime/usage.mjs';
+import { weatherToolOpenAI } from './probe-helpers.mjs';
 
 export async function runAgentCompatibilitySuite(config, apiKey) {
   const timeoutMs = config.requestBudget?.timeoutMs ?? 90000;
@@ -265,19 +266,4 @@ function summarizeAgentCompatibility(probes) {
     failCount: probes.filter((p) => p.status === 'fail').length,
     passed: Object.freeze([...passIds]),
   });
-}
-
-function weatherToolOpenAI() {
-  return {
-    type: 'function',
-    function: {
-      name: 'get_weather',
-      description: 'Get current weather for a city.',
-      parameters: {
-        type: 'object',
-        properties: { city: { type: 'string', description: 'City name' } },
-        required: ['city'],
-      },
-    },
-  };
 }

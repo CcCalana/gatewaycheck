@@ -1,5 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import { buildUrl, sanitizeForLog } from './http-client.mjs';
+import { validateExternalHttps, roundMs } from './utils.mjs';
 
 export async function requestSseJson({
   baseUrl,
@@ -281,19 +282,8 @@ function countOutputChars(parsed) {
   return count;
 }
 
-function validateExternalHttps(urlString) {
-  const url = new URL(urlString);
-  if (url.protocol !== 'https:') {
-    throw new Error(`refusing non-HTTPS gateway URL: ${url.protocol}`);
-  }
-}
-
 function elapsedMs(startedAt) {
   return roundMs(performance.now() - startedAt);
-}
-
-function roundMs(value) {
-  return Math.round(Number(value) * 100) / 100;
 }
 
 function roundNumber(value, digits) {

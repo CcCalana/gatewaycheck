@@ -1,4 +1,5 @@
 import { requestJson, sanitizeForLog } from '../runtime/http-client.mjs';
+import { numberOrNull } from '../runtime/utils.mjs';
 
 export async function discoverGateway(config, apiKey = '') {
   const timeoutMs = config.requestBudget?.timeoutMs ?? 30000;
@@ -145,9 +146,4 @@ function findVendors(values) {
     if (!Array.isArray(value)) return false;
     return value.some((item) => item && typeof item === 'object' && item.name && item.icon);
   }) ?? [];
-}
-
-function numberOrNull(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
 }

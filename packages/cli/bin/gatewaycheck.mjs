@@ -1097,19 +1097,6 @@ function resolveInside(root, target) {
   return targetPath;
 }
 
-function printMissingKeyHelp(keyEnv) {
-  console.error(`\nMissing API key environment variable: ${keyEnv}\n`);
-  console.error('Set it in your shell, then run the command again.');
-  console.error('');
-  console.error('Windows PowerShell:');
-  console.error(`  $env:${keyEnv}="sk-..."`);
-  console.error('');
-  console.error('macOS / Linux:');
-  console.error(`  export ${keyEnv}="sk-..."`);
-  console.error('');
-  console.error('GatewayCheck does not accept raw API keys as CLI flags.');
-}
-
 function splitList(value) {
   return String(value ?? '')
     .split(',')
@@ -1122,7 +1109,8 @@ function numberOption(args, flag) {
   const value = stringOption(args, flag);
   if (idx < 0 && value === undefined) return undefined;
   const n = Number(value);
-  return Number.isFinite(n) ? n : undefined;
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return n;
 }
 
 function hostName(baseUrl) {

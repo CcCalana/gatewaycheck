@@ -1,4 +1,5 @@
 import { sanitizeForLog } from './http-client.mjs';
+import { deepFreeze } from './utils.mjs';
 
 export function createBenchmarkReport({
   schemaVersion = '0.2',
@@ -109,12 +110,4 @@ function toDate(value) {
   if (value instanceof Date) return value;
   if (value) return new Date(value);
   return new Date();
-}
-
-function deepFreeze(value) {
-  if (!value || typeof value !== 'object') return value;
-  for (const child of Object.values(value)) {
-    deepFreeze(child);
-  }
-  return Object.freeze(value);
 }

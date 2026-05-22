@@ -1,3 +1,5 @@
+import { deepFreeze, numberOrNull, numberOrZero, round } from './utils.mjs';
+
 export function createAgentFacts(report, options = {}) {
   const suite = report?.suite ?? report?.run?.suite ?? 'unknown';
   const gateway = report?.gateway ?? report?.discovery?.gateway ?? {};
@@ -309,24 +311,3 @@ function unique(values) {
   return [...new Set(values)];
 }
 
-function round(value) {
-  return Math.round(value * 100) / 100;
-}
-
-function numberOrZero(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function numberOrNull(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function deepFreeze(value) {
-  if (!value || typeof value !== 'object') return value;
-  for (const child of Object.values(value)) {
-    deepFreeze(child);
-  }
-  return Object.freeze(value);
-}
